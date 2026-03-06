@@ -80,6 +80,8 @@ export default function Battle() {
           timer={state.timer}
           p1RoundWins={state.p1RoundWins}
           p2RoundWins={state.p2RoundWins}
+          modeLabel={state.modeLabel}
+          roundsToWin={state.roundsToWin}
         />
 
         <div className={styles.fightersRow}>

@@ -11,7 +11,8 @@ const initialState = {
   myName: '', myRole: '', roomId: '',
   oppName: '',
   myAvatar: 'rage', oppAvatar: 'skull',
-  round: 1, timer: 30,
+  mode: 'standard', modeLabel: '⚔️ STANDARD', roundTime: 45, roundsToWin: 3,
+  round: 1, timer: 45,
   p1Score: 0, p2Score: 0,
   p1RoundWins: 0, p2RoundWins: 0,
   roundActive: false,
@@ -35,15 +36,24 @@ function reducer(state, action) {
     case 'SET_AVATAR':       return { ...state, myAvatar: action.avatar }
 
     case 'ROOM_CREATED':
-      return { ...state, myName: action.name, myRole: 'p1', roomId: action.room_id, statusMsg: '' }
+      return { ...state, myName: action.name, myRole: 'p1', roomId: action.room_id,
+               mode: action.mode || 'standard', modeLabel: action.mode_label || '⚔️ STANDARD',
+               roundTime: action.round_time || 45, roundsToWin: action.rounds_to_win || 3,
+               timer: action.round_time || 45, statusMsg: '' }
 
     case 'ROOM_JOINED':
       return { ...state, myName: action.name, myRole: action.role, roomId: action.room_id,
-               oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull', statusMsg: '' }
+               oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull',
+               mode: action.mode || 'standard', modeLabel: action.mode_label || '⚔️ STANDARD',
+               roundTime: action.round_time || 45, roundsToWin: action.rounds_to_win || 3,
+               timer: action.round_time || 45, statusMsg: '' }
 
     case 'MATCHED':
       return { ...state, myRole: action.role, roomId: action.room_id,
-               oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull', matchmaking: false }
+               oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull',
+               mode: action.mode || 'standard', modeLabel: action.mode_label || '⚔️ STANDARD',
+               roundTime: action.round_time || 45, roundsToWin: action.rounds_to_win || 3,
+               timer: action.round_time || 45, matchmaking: false }
 
     case 'OPPONENT_JOINED':
       return { ...state, oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull' }
@@ -53,7 +63,11 @@ function reducer(state, action) {
         ...state, screen: 'battle',
         round: action.round, roundActive: false,
         showCountdown: true,
-        timer: 30, p1Score: 0, p2Score: 0,
+        mode: action.mode || state.mode,
+        modeLabel: action.mode_label || state.modeLabel,
+        roundTime: action.round_time || state.roundTime,
+        timer: action.round_time || state.roundTime,
+        p1Score: 0, p2Score: 0,
         p1RoundWins: 0, p2RoundWins: 0,
         messages: [], matchOver: false, matchWinner: '', matchWinnerRole: '',
         lastHit: null, oppDisconnected: false, oppReconnecting: false,
@@ -94,7 +108,8 @@ function reducer(state, action) {
       return {
         ...state, round: action.round,
         roundActive: false, showCountdown: true,
-        timer: 30, p1Score: 0, p2Score: 0,
+        timer: action.round_time || state.roundTime,
+        p1Score: 0, p2Score: 0,
         p1RoundWins: action.p1_round_wins,
         p2RoundWins: action.p2_round_wins,
         lastHit: null,

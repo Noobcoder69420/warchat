@@ -11,84 +11,166 @@ except Exception:
     groq_client = None
     GROQ_AVAILABLE = False
 
-SYSTEM_PROMPT = """You are the AI judge of KEYBOARD WARRIOR — a trash talk battle game. 
-Score the given trash talk message on 3 parameters, each from 1–10.
-Respond ONLY with valid JSON. No preamble, no markdown, no explanation.
-Format: {"aura":N,"damage":N,"creativity":N,"total":N,"verdict":"4-6 word hype callout in caps"}
-- aura: confidence and delivery style
-- damage: sting and impact of the insult
-- creativity: originality, wordplay, references
-- total: sum of all three (max 30)
-- verdict: a short punchy callout like "FATAL BLOW LANDED" or "WEAK SAUCE DETECTED"
-Be harsh but fair. Reward clever wordplay and cultural references heavily."""
+# ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
 
-VERDICTS_BY_tier = {
+SYSTEM_PROMPT = """You are the AI judge of KEYBOARD WARRIOR — a competitive trash talk battle game.
+
+Score the message on 3 axes (1–10 each):
+
+AURA (1–10): How confidently and boldly it was delivered.
+- 8–10: Powerful opener, commanding tone, ALL CAPS emphasis, rhetorical questions, reads like someone who KNOWS they won
+- 5–7: Decent confidence, some punch, clear voice
+- 2–4: Flat, uncertain, reads like a mumble
+- 1: Single character, no delivery whatsoever
+
+DAMAGE (1–10): How much the actual insult STINGS.
+- 8–10: Specific, personal, cuts deep — references their failures, appearance, intelligence, existence
+- 5–7: Generic insult but lands, references something relatable
+- 2–4: Vague, could apply to anyone, barely registers
+- 1: No insult content at all
+
+CREATIVITY (1–10): Originality, wordplay, metaphors, structure.
+- 8–10: Unique comparison, clever metaphor, unexpected angle, simile, well-structured multi-part burn
+- 5–7: Some originality, decent vocab variety, not totally recycled
+- 2–4: Generic phrases, buzzwords, no real craft
+- 1: Single buzzword or repetition with zero originality
+
+HARD RULES — these override everything:
+1. Single letters (L, W, K) or single numbers → all scores 1, total 3
+2. Pure gibberish (asdfgh, jjjjj, random keys) → all scores 1, total 3, verdict "SPAM DETECTED"
+3. Same word repeated 3+ times → all scores 1, total 3, verdict "SPAM DETECTED"
+4. Lone buzzwords with no context (just "clapped", "ratio", "mid", "cope", "rekt") → max total 6
+5. Messages over 20 words get +1 bonus to aura AND creativity for effort (but gibberish still scores 1)
+6. Metaphors and similes ("like a", "as if", "reminds me of") → creativity gets +2 if well used
+
+SCORING REFERENCE:
+- "L" → {aura:1, damage:1, creativity:1, total:3}
+- "clapped" → {aura:2, damage:2, creativity:1, total:5}  
+- "you're trash" → {aura:3, damage:3, creativity:2, total:8}
+- "you look like you eat cereal with water" → {aura:5, damage:6, creativity:8, total:19}
+- "no wonder your dad left, even he couldn't stand watching you fail this hard" → {aura:7, damage:9, creativity:8, total:24}
+- "imagine spending 20 years on earth only to peak at losing an internet argument to someone who won't remember your name tomorrow" → {aura:8, damage:8, creativity:9, total:25}
+
+Respond ONLY with valid JSON. No preamble, no markdown, no extra text.
+Format: {"aura":N,"damage":N,"creativity":N,"total":N,"verdict":"4-6 word hype callout in caps"}
+total MUST equal aura + damage + creativity exactly."""
+
+# ─── VERDICTS ─────────────────────────────────────────────────────────────────
+
+VERDICTS = {
     'legendary': [
         'ABSOLUTE DESTRUCTION ACHIEVED', 'FATALITY — FLAWLESS VICTORY',
         'CRITICAL HIT — OPPONENT DELETED', 'KEYBOARD WARRIOR UNLOCKED',
         'LEGENDARY STATUS CONFIRMED', 'CROWD GOES ABSOLUTELY INSANE',
-        'THIS IS NOT A DRILL — FATAL', 'THE INTERNET BOWS DOWN'
+        'THE INTERNET BOWS DOWN', 'GENERATIONAL TALENT CONFIRMED',
+        'THIS IS NOT A DRILL', 'HISTORIC DAMAGE LOGGED'
     ],
     'elite': [
         'SOLID BURN — FELT THAT', 'HIGH DAMAGE OUTPUT DETECTED',
         'OPPONENT ON LIFE SUPPORT', 'THAT ONE LEFT A MARK',
-        'CERTIFIED CLAPPER MOVE', 'AURA LEVELS CRITICAL',
-        'RATIO INCOMING', 'DEVASTATING COMBO LANDED'
+        'AURA LEVELS CRITICAL', 'DEVASTATING COMBO LANDED',
+        'CERTIFIED DAMAGE DEALT', 'CROWD ERUPTS',
+        'RATIO CONFIRMED', 'OPPONENT STAGGERED'
     ],
     'mid': [
         'DECENT SHOT — KEEP PUSHING', 'GLANCING HIT REGISTERED',
-        'MEDIUM DAMAGE DEALT', 'CROWD MUMBLES APPROVINGLY',
-        'NOT BAD — NOT GREAT', 'SERVICEABLE INSULT LOGGED',
-        'POINTS ON THE BOARD', 'KEEPING IT IN THE GAME'
+        'CROWD MUMBLES APPROVINGLY', 'NOT BAD — NOT GREAT',
+        'POINTS ON THE BOARD', 'WARMING UP DETECTED',
+        'SERVICEABLE ATTEMPT', 'KEEP GOING WARRIOR'
     ],
     'weak': [
         'WEAK SAUCE DETECTED', 'IS THAT ALL YOU GOT',
         'MY GRANDMOTHER TYPES HARDER', 'EMBARRASSING ATTEMPT LOGGED',
         'THE CROWD FELL ASLEEP', 'CRITICAL MISS — TRY AGAIN',
-        'KEYBOARD WARRIOR FAILED', 'ZERO DAMAGE OUTPUT'
+        'KEYBOARD WARRIOR FAILED', 'ZERO DAMAGE OUTPUT',
+        'EVEN THE AI IS BORED', 'TRY HARDER NEXT TIME'
+    ],
+    'spam': [
+        'SPAM DETECTED — NO POINTS', 'COPY PASTE LOSER',
+        'TRY USING ACTUAL WORDS', 'LAZY TACTICS PENALIZED',
+        'THE AI IS NOT IMPRESSED', 'GIBBERISH REJECTED',
+        'SPAM FILTER ACTIVATED'
     ]
 }
 
+# ─── DETECTION HELPERS ────────────────────────────────────────────────────────
+
+LONE_BUZZWORDS = {
+    'clapped', 'rekt', 'ratio', 'mid', 'cope', 'seethe', 'mald',
+    'l', 'w', 'lol', 'lmao', 'gg', 'ez', 'gg ez', 'rip', 'bozo',
+    'npc', 'cringe', 'based', 'ok', 'k', 'cooked', 'washed',
+    'diffed', 'bodied', 'clown', 'bro', 'skill issue', 'ratio',
+    'cope', 'loser', 'noob', 'bot', 'trash', 'bad', 'dumb'
+}
+
+def is_gibberish(text):
+    words = text.strip().split()
+    if not words: return True
+    gibberish_count = 0
+    for word in words:
+        clean = re.sub(r'[^a-zA-Z]', '', word.lower())
+        if len(clean) < 2: continue
+        if len(set(clean)) == 1 and len(clean) >= 3:
+            gibberish_count += 1; continue
+        vowels = sum(1 for c in clean if c in 'aeiou')
+        if len(clean) >= 4 and vowels == 0:
+            gibberish_count += 1; continue
+        if len(clean) >= 5 and (1 - vowels / len(clean)) > 0.85:
+            gibberish_count += 1
+    return gibberish_count >= max(1, len(words) * 0.6)
+
+def is_pure_spam(text):
+    words = text.lower().split()
+    if len(words) < 2: return False
+    if len(set(words)) == 1 and len(words) >= 2: return True
+    most_common = max(set(words), key=words.count)
+    return words.count(most_common) / len(words) >= 0.7 and len(words) >= 3
+
+def is_single_char(text):
+    return len(text.strip()) <= 1
+
+def is_lone_buzzword(text):
+    stripped = text.strip().lower().rstrip('.')
+    words = stripped.split()
+    if len(words) <= 2:
+        return stripped in LONE_BUZZWORDS or all(w in LONE_BUZZWORDS for w in words)
+    return False
+
+def spam_score():
+    return {'aura': 1, 'damage': 1, 'creativity': 1, 'total': 3,
+            'verdict': random.choice(VERDICTS['spam'])}
+
+def buzzword_score():
+    return {'aura': random.randint(1, 2), 'damage': random.randint(1, 3), 'creativity': 1,
+            'total': random.randint(3, 6), 'verdict': random.choice(VERDICTS['weak'])}
+
 # ─── HEURISTIC FALLBACK ───────────────────────────────────────────────────────
 
-TIER_1_PHRASES = [
-    'you lose', 'go home', 'get rekt', 'gg ez', 'trash', 'noob', 'bot',
-    'suck', 'bad', 'loser', 'kid', 'nerd', 'dumb', 'idiot', 'stupid'
-]
-
-TIER_2_PHRASES = [
-    'ratio', 'clapped', 'destroyed', 'cringe', 'skill issue', 'npc',
-    'boomer', 'mid', 'cope', 'seethe', 'mald', 'get good', 'delete yourself',
-    'irrelevant', 'washed', 'cooked', 'down bad', 'no cap', 'based',
-    'touch grass', 'chronically online', 'rent free', 'main character',
-    'not even close', 'diffed', 'smurfed', 'bodied'
-]
-
-TIER_3_PHRASES = [
+POWER_PHRASES = [
     'your whole existence', 'generational failure', 'statistically irrelevant',
-    'the algorithm rejected', 'negative iq', 'cognitively challenged',
-    'evolutionary mistake', 'wifi password protected', 'legally braindead',
-    'mother should have', 'dad left for', 'peak of your bloodline',
-    'the universe autocorrected', 'living proof that', 'empirically awful'
+    'mother should have', 'peak of your bloodline', 'living proof that',
+    'empirically awful', 'cognitively challenged', 'evolutionary mistake',
+    'no wonder your', 'imagine actually being', 'the fact that you',
+    'scientifically proven', 'negative iq'
 ]
-
-COMEBACK_PHRASES = [
-    'that all you got', 'is that your best', 'try again',
-    'nice try', 'keep going', 'not impressed', 'more like',
-    'actually though', 'speaking of', 'at least'
+SOLID_BURNS = [
+    'you look like', 'you sound like', 'you smell like', 'you act like',
+    'even your', 'no wonder', 'delete yourself', 'get good',
+    'touch grass', 'chronically online', 'rent free', 'not even close',
+    'down bad', 'irrelevant', 'you are the', 'you were the',
+    'reminds me of', 'compared to you'
 ]
-
 STRUCTURE_PATTERNS = [
-    r'\byour\s+\w+\s+is\b',
-    r'\byou\s+(look|sound|smell|act)\b',
-    r'\beven\s+your\b',
-    r'\bwhen\s+you\b',
-    r'\bthe\s+fact\s+that\b',
-    r'\bno\s+wonder\b',
-    r'\bimagine\s+being\b',
-    r'\bactually\s+think\b',
+    r'\byour\s+\w+\s+is\b', r'\byou\s+(look|sound|smell|act|remind)\b',
+    r'\beven\s+your\b', r'\bno\s+wonder\b', r'\bimagine\s+being\b',
+    r'\bthe\s+fact\s+that\b', r'\bwhen\s+you\b', r'\bat\s+least\s+',
+    r'\bnot\s+even\s+', r'\blet\s+(me|us)\s+be\s+honest\b',
 ]
-
+AURA_OPENERS = [
+    "let's be honest", "let me be clear", "not gonna lie", "the fact is",
+    "listen", "hear me out", "i'm sorry but", "respectfully",
+    "with all due respect", "scientifically speaking"
+]
 
 def heuristic_judge(text):
     lower = text.lower()
@@ -96,80 +178,51 @@ def heuristic_judge(text):
     word_count = len(words)
     unique_words = len(set(words))
 
-    # ── DAMAGE ────────────────────────────────────────────────────────────────
+    # DAMAGE
     damage = 2
-    for p in TIER_1_PHRASES:
-        if p in lower:
-            damage += 1
-    for p in TIER_2_PHRASES:
-        if p in lower:
-            damage += 2
-    for p in TIER_3_PHRASES:
-        if p in lower:
-            damage += 3
+    for p in SOLID_BURNS:
+        if p in lower: damage += 2; break
+    for p in POWER_PHRASES:
+        if p in lower: damage += 4; break
+    if word_count >= 10: damage += 1
+    if word_count >= 20: damage += 1
     damage = min(damage, 10)
 
-    # ── AURA ──────────────────────────────────────────────────────────────────
+    # AURA — properly rewards confident delivery
     aura = 3
     caps_words = sum(1 for w in text.split() if w.isupper() and len(w) > 2)
-    if caps_words >= 3:
-        aura += 2
-    elif caps_words >= 1:
-        aura += 1
-    if text.count('!') >= 2:
-        aura += 1
-    if text.endswith('?') and damage >= 5:
-        aura += 1  # rhetorical question = confident
-    if word_count <= 6 and damage >= 6:
-        aura += 2  # short & deadly
-    if word_count >= 20:
-        aura += 1  # elaborate rant
-    for p in COMEBACK_PHRASES:
-        if p in lower:
-            aura += 1
-            break
+    if caps_words >= 5: aura += 3
+    elif caps_words >= 3: aura += 2
+    elif caps_words >= 1: aura += 1
+    if text.count('!') >= 2: aura += 1
+    if text.strip().endswith('?') and damage >= 5: aura += 1
+    if word_count >= 20: aura += 2  # long effort deserves aura
+    elif word_count >= 12: aura += 1
+    for opener in AURA_OPENERS:
+        if lower.startswith(opener): aura += 2; break
     aura = min(aura, 10)
 
-    # ── CREATIVITY ────────────────────────────────────────────────────────────
+    # CREATIVITY
     creativity = 2
     vocab_ratio = unique_words / max(word_count, 1)
-    if vocab_ratio > 0.85 and word_count > 5:
-        creativity += 2
-    if word_count > 12:
-        creativity += 1
+    if vocab_ratio > 0.85 and word_count > 8: creativity += 3
+    elif vocab_ratio > 0.7 and word_count > 5: creativity += 2
+    elif vocab_ratio > 0.5 and word_count > 3: creativity += 1
+    if word_count >= 20: creativity += 2  # long effort bonus
+    elif word_count >= 12: creativity += 1
     for pattern in STRUCTURE_PATTERNS:
-        if re.search(pattern, lower):
-            creativity += 2
-            break
-    # metaphor/simile bonus
-    if ' like ' in lower or ' as ' in lower:
-        creativity += 1
-    # emoji penalty (lazy)
-    emoji_count = sum(1 for c in text if ord(c) > 0x1F300)
-    if emoji_count > 2:
-        creativity -= 1
+        if re.search(pattern, lower): creativity += 2; break
+    if ' like ' in lower or ' as if ' in lower or ' reminds me' in lower: creativity += 2
     creativity = max(1, min(creativity, 10))
 
     total = aura + damage + creativity
 
-    # ── VERDICT ───────────────────────────────────────────────────────────────
-    if total >= 25:
-        verdict = random.choice(VERDICTS_BY_tier['legendary'])
-    elif total >= 18:
-        verdict = random.choice(VERDICTS_BY_tier['elite'])
-    elif total >= 11:
-        verdict = random.choice(VERDICTS_BY_tier['mid'])
-    else:
-        verdict = random.choice(VERDICTS_BY_tier['weak'])
+    if total >= 24: verdict = random.choice(VERDICTS['legendary'])
+    elif total >= 17: verdict = random.choice(VERDICTS['elite'])
+    elif total >= 11: verdict = random.choice(VERDICTS['mid'])
+    else: verdict = random.choice(VERDICTS['weak'])
 
-    return {
-        'aura': aura,
-        'damage': damage,
-        'creativity': creativity,
-        'total': total,
-        'verdict': verdict
-    }
-
+    return {'aura': aura, 'damage': damage, 'creativity': creativity, 'total': total, 'verdict': verdict}
 
 # ─── GROQ JUDGE ───────────────────────────────────────────────────────────────
 
@@ -182,33 +235,30 @@ def judge_with_groq(text):
                 {'role': 'user', 'content': f'Rate this trash talk: "{text}"'}
             ],
             max_tokens=120,
-            temperature=0.7,
+            temperature=0.4,
         )
         raw = response.choices[0].message.content.strip()
-        raw = raw.replace('```json', '').replace('```', '').strip()
+        raw = re.sub(r'```json|```', '', raw).strip()
         scores = json.loads(raw)
 
-        # Validate and clamp
-        scores['aura'] = max(1, min(int(scores.get('aura', 5)), 10))
-        scores['damage'] = max(1, min(int(scores.get('damage', 5)), 10))
-        scores['creativity'] = max(1, min(int(scores.get('creativity', 5)), 10))
-        scores['total'] = scores['aura'] + scores['damage'] + scores['creativity']
-        scores['verdict'] = str(scores.get('verdict', 'SHOT FIRED')).upper()[:40]
-        return scores
+        aura = max(1, min(int(scores.get('aura', 3)), 10))
+        damage = max(1, min(int(scores.get('damage', 3)), 10))
+        creativity = max(1, min(int(scores.get('creativity', 3)), 10))
+        total = aura + damage + creativity
+        verdict = str(scores.get('verdict', 'SHOT FIRED')).upper()[:40]
+        return {'aura': aura, 'damage': damage, 'creativity': creativity, 'total': total, 'verdict': verdict}
 
     except Exception as e:
-        print(f'[GROQ ERROR] {e} — falling back to heuristic')
+        print(f'[GROQ ERROR] {e}')
         return heuristic_judge(text)
-
 
 # ─── PUBLIC INTERFACE ─────────────────────────────────────────────────────────
 
-def judge_message(text, room_id=None, role=None, room_manager=None):
-    """
-    Judge a message. Uses Groq if available, falls back to heuristic.
-    room_id/role/room_manager are available for future context-aware scoring.
-    """
-    if GROQ_AVAILABLE and groq_client:
-        return judge_with_groq(text)
-    else:
-        return heuristic_judge(text)
+def judge_message(text):
+    text = text.strip()
+    if not text or is_single_char(text): return spam_score()
+    if is_pure_spam(text): print(f'[SPAM] {text[:30]}'); return spam_score()
+    if is_gibberish(text): print(f'[GIBBERISH] {text[:30]}'); return spam_score()
+    if is_lone_buzzword(text): print(f'[BUZZWORD] {text[:30]}'); return buzzword_score()
+    if GROQ_AVAILABLE and groq_client: return judge_with_groq(text)
+    return heuristic_judge(text)

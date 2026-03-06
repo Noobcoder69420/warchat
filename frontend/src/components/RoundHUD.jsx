@@ -1,10 +1,8 @@
-const ROUNDS_TO_WIN = 3
-
-export default function RoundHUD({ round, timer, p1RoundWins, p2RoundWins }) {
+export default function RoundHUD({ round, timer, p1RoundWins, p2RoundWins, modeLabel, roundsToWin = 3 }) {
   const urgent = timer <= 10
 
   const dots = (wins, side) =>
-    Array.from({ length: ROUNDS_TO_WIN }, (_, i) => (
+    Array.from({ length: roundsToWin }, (_, i) => (
       <div key={i} style={{
         width: 10, height: 10,
         border: `1px solid ${i < wins ? (side === 'p1' ? 'var(--neon-cyan)' : 'var(--neon-red)') : 'var(--dim)'}`,
@@ -32,7 +30,9 @@ export default function RoundHUD({ round, timer, p1RoundWins, p2RoundWins }) {
           <div style={{ width: 6, height: 10, background: 'var(--dim)', margin: '0 2px' }} />
           {dots(p2RoundWins, 'p2')}
         </div>
-        <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, color: 'var(--dim)', letterSpacing: 2 }}>BEST OF 5</div>
+        <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, color: 'var(--dim)', letterSpacing: 2 }}>
+          {modeLabel || 'STANDARD'}
+        </div>
       </div>
 
       <div style={{ textAlign: 'right' }}>

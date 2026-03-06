@@ -4,7 +4,7 @@ import time
 import threading
 import urllib.request
 from flask import Flask, request
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room
 from flask_cors import CORS
 from rooms import RoomManager
 from judge import judge_message
@@ -15,9 +15,17 @@ CORS(app, origins="*")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', logger=False, engineio_logger=False)
 room_manager = RoomManager()
 
-ROUND_TIME = 30
-ROUNDS_TO_WIN = 3
-MAX_ROUNDS = 5
+# ─── MATCH MODES ──────────────────────────────────────────────────────────────
+
+MATCH_MODES = {
+    'blitz':    {'label': '⚡ BLITZ',     'round_time': 20, 'rounds_to_win': 2, 'max_rounds': 3},
+    'standard': {'label': '⚔️ STANDARD',  'round_time': 45, 'rounds_to_win': 3, 'max_rounds': 5},
+    'big_brain':{'label': '🧠 BIG BRAIN', 'round_time': 90, 'rounds_to_win': 2, 'max_rounds': 3},
+}
+DEFAULT_MODE = 'standard'
+
+def get_mode(room):
+    return MATCH_MODES.get(room.get('mode', DEFAULT_MODE), MATCH_MODES[DEFAULT_MODE])
 
 # ─── ONLINE COUNT ─────────────────────────────────────────────────────────────
 
@@ -33,8 +41,7 @@ def broadcast_online_count():
 
 def keep_alive():
     domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '')
-    if not domain:
-        return
+    if not domain: return
     url = f'https://{domain}/health'
     while True:
         time.sleep(600)
@@ -46,14 +53,18 @@ def keep_alive():
 
 threading.Thread(target=keep_alive, daemon=True).start()
 
-# ─── TIMERS ───────────────────────────────────────────────────────────────────
+# ─── TIMER ────────────────────────────────────────────────────────────────────
 
 def run_round_timer(room_id):
     room = room_manager.get_room(room_id)
     if not room: return
-    for remaining in range(ROUND_TIME, -1, -1):
+    mode = get_mode(room)
+    round_time = mode['round_time']
+
+    for remaining in range(round_time, -1, -1):
         room = room_manager.get_room(room_id)
-        if not room or room.get('status') != 'battle' or room.get('round_active') is False: return
+        if not room or room.get('status') != 'battle' or not room.get('round_active'):
+            return
         socketio.emit('timer_tick', {'seconds': remaining}, room=room_id)
         if remaining == 0:
             end_round(room_id)
@@ -64,8 +75,14 @@ def end_round(room_id):
     room = room_manager.get_room(room_id)
     if not room or not room.get('round_active'): return
     room_manager.set_round_active(room_id, False)
+
+    mode = get_mode(room)
+    rounds_to_win = mode['rounds_to_win']
+    max_rounds = mode['max_rounds']
+
     p1_score = room['scores']['p1']
     p2_score = room['scores']['p2']
+
     if p1_score > p2_score:
         winner_role = 'p1'
         room_manager.add_round_win(room_id, 'p1')
@@ -74,20 +91,24 @@ def end_round(room_id):
         room_manager.add_round_win(room_id, 'p2')
     else:
         winner_role = 'tie'
+
     room = room_manager.get_room(room_id)
     p1_wins = room['round_wins']['p1']
     p2_wins = room['round_wins']['p2']
     current_round = room['current_round']
-    match_over = (p1_wins >= ROUNDS_TO_WIN or p2_wins >= ROUNDS_TO_WIN or current_round >= MAX_ROUNDS)
+    match_over = (p1_wins >= rounds_to_win or p2_wins >= rounds_to_win or current_round >= max_rounds)
+
     winner_name = ''
     if winner_role == 'p1': winner_name = room['players']['p1']['name']
     elif winner_role == 'p2': winner_name = room['players']['p2']['name']
+
     socketio.emit('round_end', {
         'winner_role': winner_role, 'winner_name': winner_name,
         'p1_score': p1_score, 'p2_score': p2_score,
         'p1_round_wins': p1_wins, 'p2_round_wins': p2_wins,
         'match_over': match_over
     }, room=room_id)
+
     if match_over:
         if p1_wins > p2_wins:
             match_winner = room['players']['p1']['name']
@@ -98,16 +119,20 @@ def end_round(room_id):
         else:
             match_winner = 'TIE'
             match_winner_role = 'tie'
+
         def delayed_match_end():
             time.sleep(3.5)
+            r = room_manager.get_room(room_id)
+            if not r: return
             socketio.emit('match_end', {
                 'winner': match_winner,
                 'winner_role': match_winner_role,
                 'p1_wins': p1_wins, 'p2_wins': p2_wins,
-                'p1_name': room['players']['p1']['name'],
-                'p2_name': room['players']['p2']['name']
+                'p1_name': r['players'].get('p1', {}).get('name', ''),
+                'p2_name': r['players'].get('p2', {}).get('name', ''),
             }, room=room_id)
             room_manager.set_status(room_id, 'finished')
+
         threading.Thread(target=delayed_match_end, daemon=True).start()
     else:
         def delayed_next_round():
@@ -116,12 +141,15 @@ def end_round(room_id):
             if not r: return
             next_round = r['current_round'] + 1
             room_manager.start_next_round(room_id, next_round)
+            m = get_mode(r)
             socketio.emit('round_start', {
                 'round': next_round,
                 'p1_round_wins': r['round_wins']['p1'],
-                'p2_round_wins': r['round_wins']['p2']
+                'p2_round_wins': r['round_wins']['p2'],
+                'round_time': m['round_time'],
             }, room=room_id)
             threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
+
         threading.Thread(target=delayed_next_round, daemon=True).start()
 
 # ─── SOCKET EVENTS ────────────────────────────────────────────────────────────
@@ -131,10 +159,11 @@ def on_connect():
     with online_lock:
         online_sids.add(request.sid)
     broadcast_online_count()
-    # Send current count to just-connected client
     with online_lock:
         count = len(online_sids)
     emit('online_count', {'count': count})
+    # Send available modes to client
+    emit('modes_info', {'modes': {k: {'label': v['label'], 'round_time': v['round_time'], 'rounds_to_win': v['rounds_to_win'], 'max_rounds': v['max_rounds']} for k, v in MATCH_MODES.items()}})
     print(f'[+] {request.sid} ({count} online)')
 
 @socketio.on('disconnect')
@@ -147,28 +176,22 @@ def on_disconnect():
     result = room_manager.mark_disconnected(sid)
     if result:
         room_id, role, name = result
-        # Notify opponent but don't remove yet — give 15s grace period
         socketio.emit('opp_reconnecting', {
             'player': name,
             'message': f'{name} lost connection — waiting for reconnect...',
             'seconds': 15
         }, room=room_id)
 
-        # After 15s, if they haven't rejoined, fire the full disconnect
         def delayed_disconnect():
             time.sleep(15)
             room = room_manager.get_room(room_id)
             if not room: return
-            # Check if they rejoined (their role would have a different sid now)
             player = room['players'].get(role, {})
             if player.get('sid') == sid:
-                # Still the old sid = they didn't rejoin
                 room_manager.finalize_disconnect(room_id, role)
                 socketio.emit('player_disconnected', {
-                    'player': name,
-                    'message': f'{name} disconnected'
+                    'player': name, 'message': f'{name} disconnected'
                 }, room=room_id)
-            # else: they rejoined successfully, do nothing
 
         threading.Thread(target=delayed_disconnect, daemon=True).start()
 
@@ -176,31 +199,30 @@ def on_disconnect():
         count = len(online_sids)
     print(f'[-] {sid} ({count} online)')
 
-
 @socketio.on('rejoin_room')
 def on_rejoin_room(data):
-    """Client sends this on reconnect if they were mid-battle."""
     room_id = data.get('room_id', '').strip().upper()
     role = data.get('role', '')
     sid = request.sid
-
     state = room_manager.try_rejoin(sid, room_id, role)
     if state:
         join_room(room_id)
         with online_lock:
             online_sids.add(sid)
+        # Include mode info in rejoin
+        room = room_manager.get_room(room_id)
+        if room:
+            m = get_mode(room)
+            state['mode'] = room.get('mode', DEFAULT_MODE)
+            state['round_time'] = m['round_time']
         emit('rejoin_success', state)
-        # Tell opponent they're back
-        socketio.emit('opp_reconnected', {
-            'message': f'{state["name"]} reconnected!'
-        }, room=room_id, include_self=False)
-        print(f'[REJOIN] {state["name"]} rejoined {room_id} as {role}')
+        socketio.emit('opp_reconnected', {'message': f'{state["name"]} reconnected!'}, room=room_id, include_self=False)
+        print(f'[REJOIN] {state["name"]} rejoined {room_id}')
     else:
         emit('rejoin_failed', {'message': 'Could not rejoin — room may have ended.'})
 
 @socketio.on('leave_room')
 def on_leave_room():
-    """Player intentionally left — skip grace period, remove immediately."""
     sid = request.sid
     room_id = room_manager.find_room_by_sid(sid)
     if room_id:
@@ -208,23 +230,30 @@ def on_leave_room():
         if room:
             role = room_manager.get_role_by_sid(room_id, sid)
             name = room['players'].get(role, {}).get('name', 'A player') if role else 'A player'
-            # Cancel any pending rejoin grace period
             room_manager.cancel_rejoin(room_id, role)
-            # Remove immediately and notify opponent
             room_manager.remove_player(room_id, sid)
             socketio.emit('player_disconnected', {
-                'player': name,
-                'message': f'{name} left the battle'
+                'player': name, 'message': f'{name} left the battle'
             }, room=room_id)
-    print(f'[LEAVE] {sid} left room {room_id}')
+    print(f'[LEAVE] {sid}')
 
 @socketio.on('create_room')
 def on_create_room(data):
     name = data.get('name', 'Fighter').strip()[:20]
     avatar = data.get('avatar', 'rage')
-    room_id = room_manager.create_room(request.sid, name, avatar)
+    mode = data.get('mode', DEFAULT_MODE)
+    if mode not in MATCH_MODES:
+        mode = DEFAULT_MODE
+    room_id = room_manager.create_room(request.sid, name, avatar, mode)
     join_room(room_id)
-    emit('room_created', {'room_id': room_id, 'role': 'p1', 'name': name})
+    m = MATCH_MODES[mode]
+    emit('room_created', {
+        'room_id': room_id, 'role': 'p1', 'name': name,
+        'mode': mode, 'mode_label': m['label'],
+        'round_time': m['round_time'],
+        'rounds_to_win': m['rounds_to_win'],
+        'max_rounds': m['max_rounds'],
+    })
 
 @socketio.on('join_room_req')
 def on_join_room(data):
@@ -235,32 +264,53 @@ def on_join_room(data):
     if not room: emit('join_error', {'message': 'ROOM NOT FOUND. CHECK CODE.'}); return
     if room['status'] != 'waiting': emit('join_error', {'message': 'ROOM ALREADY IN BATTLE.'}); return
     if len(room['players']) >= 2: emit('join_error', {'message': 'ROOM IS FULL.'}); return
+
     room_manager.add_player(room_id, request.sid, name, 'p2', avatar)
     join_room(room_id)
     p1 = room['players']['p1']
+    m = get_mode(room)
+
     emit('room_joined', {
         'room_id': room_id, 'role': 'p2', 'name': name,
-        'opponent_name': p1['name'], 'opponent_avatar': p1.get('avatar', 'rage')
+        'opponent_name': p1['name'], 'opponent_avatar': p1.get('avatar', 'rage'),
+        'mode': room.get('mode', DEFAULT_MODE), 'mode_label': m['label'],
+        'round_time': m['round_time'], 'rounds_to_win': m['rounds_to_win'], 'max_rounds': m['max_rounds'],
     })
     emit('opponent_joined', {
         'opponent_name': name, 'opponent_avatar': avatar, 'room_id': room_id
     }, room=room_id, include_self=False)
+
     room_manager.set_status(room_id, 'battle')
     room_manager.set_round_active(room_id, True)
-    socketio.emit('battle_start', {'p1_name': p1['name'], 'p2_name': name, 'round': 1}, room=room_id)
+    socketio.emit('battle_start', {
+        'p1_name': p1['name'], 'p2_name': name, 'round': 1,
+        'mode': room.get('mode', DEFAULT_MODE), 'mode_label': m['label'],
+        'round_time': m['round_time'], 'rounds_to_win': m['rounds_to_win'], 'max_rounds': m['max_rounds'],
+    }, room=room_id)
     threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
 
 @socketio.on('join_matchmaking')
 def on_join_matchmaking(data):
     name = data.get('name', 'Fighter').strip()[:20]
     avatar = data.get('avatar', 'rage')
-    matched = room_manager.matchmake(request.sid, name, avatar)
+    # Matchmaking always uses standard mode
+    matched = room_manager.matchmake(request.sid, name, avatar, mode=DEFAULT_MODE)
     if matched:
         room_id, p1_sid, p1_name, p1_av, p2_sid, p2_name, p2_av = matched
-        join_room(room_id, sid=p1_sid); join_room(room_id, sid=p2_sid)
-        socketio.emit('matched', {'room_id': room_id, 'role': 'p1', 'opponent_name': p2_name, 'opponent_avatar': p2_av}, room=p1_sid)
-        socketio.emit('matched', {'room_id': room_id, 'role': 'p2', 'opponent_name': p1_name, 'opponent_avatar': p1_av}, room=p2_sid)
-        socketio.emit('battle_start', {'p1_name': p1_name, 'p2_name': p2_name, 'round': 1}, room=room_id)
+        join_room(room_id, sid=p1_sid)
+        join_room(room_id, sid=p2_sid)
+        m = MATCH_MODES[DEFAULT_MODE]
+        socketio.emit('matched', {'room_id': room_id, 'role': 'p1', 'opponent_name': p2_name, 'opponent_avatar': p2_av,
+            'mode': DEFAULT_MODE, 'mode_label': m['label'], 'round_time': m['round_time'],
+            'rounds_to_win': m['rounds_to_win'], 'max_rounds': m['max_rounds']}, room=p1_sid)
+        socketio.emit('matched', {'room_id': room_id, 'role': 'p2', 'opponent_name': p1_name, 'opponent_avatar': p1_av,
+            'mode': DEFAULT_MODE, 'mode_label': m['label'], 'round_time': m['round_time'],
+            'rounds_to_win': m['rounds_to_win'], 'max_rounds': m['max_rounds']}, room=p2_sid)
+        socketio.emit('battle_start', {
+            'p1_name': p1_name, 'p2_name': p2_name, 'round': 1,
+            'mode': DEFAULT_MODE, 'mode_label': m['label'],
+            'round_time': m['round_time'], 'rounds_to_win': m['rounds_to_win'], 'max_rounds': m['max_rounds'],
+        }, room=room_id)
         room_manager.set_status(room_id, 'battle')
         room_manager.set_round_active(room_id, True)
         threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
@@ -282,12 +332,11 @@ def on_send_message(data):
     if not room or not room.get('round_active'): return
     role = room_manager.get_role_by_sid(room_id, request.sid)
     if not role: return
-    player_name = room['players'][role]['name']
-    player_avatar = room['players'][role].get('avatar', 'rage')
+    player = room['players'][role]
     msg_id = str(uuid.uuid4())[:8]
     socketio.emit('new_message', {
         'msg_id': msg_id, 'role': role,
-        'name': player_name, 'avatar': player_avatar, 'text': text
+        'name': player['name'], 'avatar': player.get('avatar', 'rage'), 'text': text
     }, room=room_id)
     def judge_async():
         scores = judge_message(text)
@@ -304,9 +353,12 @@ def on_rematch_request():
     if ready:
         room_manager.reset_room(room_id)
         r = room_manager.get_room(room_id)
+        m = get_mode(r)
         socketio.emit('battle_start', {
             'p1_name': r['players']['p1']['name'],
-            'p2_name': r['players']['p2']['name'], 'round': 1
+            'p2_name': r['players']['p2']['name'], 'round': 1,
+            'mode': r.get('mode', DEFAULT_MODE), 'mode_label': m['label'],
+            'round_time': m['round_time'], 'rounds_to_win': m['rounds_to_win'], 'max_rounds': m['max_rounds'],
         }, room=room_id)
         threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
 

@@ -15,6 +15,13 @@ export default function Lobby() {
   const [mmName, setMmName] = useState('')
   const [tab, setTab] = useState('create')
   const [copied, setCopied] = useState(false)
+  const [selectedMode, setSelectedMode] = useState('standard')
+
+  const MODES = [
+    { key: 'blitz',     label: '⚡ BLITZ',     desc: '20s · First to 2 rounds', color: '#f0c040' },
+    { key: 'standard',  label: '⚔️ STANDARD',  desc: '45s · First to 3 rounds', color: '#00e5ff' },
+    { key: 'big_brain', label: '🧠 BIG BRAIN', desc: '90s · First to 2 rounds', color: '#b388ff' },
+  ]
 
   useEffect(() => {
     if (state.screen === 'battle') navigate('/battle')
@@ -24,7 +31,7 @@ export default function Lobby() {
 
   function createRoom() {
     if (!hostName.trim()) { dispatch({ type: 'SET_STATUS', msg: 'ENTER YOUR FIGHTER NAME', stype: 'err' }); return }
-    socket.emit('create_room', { name: hostName.trim(), avatar: state.myAvatar })
+    socket.emit('create_room', { name: hostName.trim(), avatar: state.myAvatar, mode: selectedMode })
   }
 
   function joinRoom() {
@@ -79,7 +86,6 @@ export default function Lobby() {
           ))}
         </div>
 
-        {/* CREATE */}
         {tab === 'create' && (
           <div className={`${styles.panel} ${styles.cyan}`}>
             {!isWaiting ? (
@@ -87,10 +93,36 @@ export default function Lobby() {
                 <label className={styles.label}>YOUR FIGHTER NAME</label>
                 <input className={styles.input} value={hostName} onChange={e=>setHostName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createRoom()} placeholder="e.g. ChadGPT" maxLength={20} disabled={!state.connected} />
                 <AvatarSelect selected={state.myAvatar} onSelect={av => dispatch({ type: 'SET_AVATAR', avatar: av })} />
+                <label className={styles.label} style={{marginTop:8}}>CHOOSE MATCH MODE</label>
+                <div style={{display:'flex', gap:8, marginBottom:8}}>
+                  {MODES.map(m => (
+                    <button key={m.key} onClick={() => setSelectedMode(m.key)} style={{
+                      flex:1, padding:'10px 4px', cursor:'pointer',
+                      background: selectedMode === m.key ? `${m.color}18` : 'transparent',
+                      border: `1px solid ${selectedMode === m.key ? m.color : 'rgba(255,255,255,0.1)'}`,
+                      color: selectedMode === m.key ? m.color : 'var(--dim)',
+                      fontFamily:"'Share Tech Mono',monospace",
+                      fontSize:10, letterSpacing:1, lineHeight:1.6,
+                      transition:'all 0.15s', textAlign:'center'
+                    }}>
+                      <div style={{fontSize:14}}>{m.label.split(' ')[0]}</div>
+                      <div style={{fontSize:9, marginTop:2}}>{m.label.split(' ').slice(1).join(' ')}</div>
+                      <div style={{fontSize:8, color:'var(--dim)', marginTop:3}}>{m.desc}</div>
+                    </button>
+                  ))}
+                </div>
                 <button className={`${styles.btn} ${styles.btnCyan}`} onClick={createRoom} disabled={!state.connected}>CREATE ROOM</button>
               </>
             ) : (
               <div className={styles.waitingPanel}>
+                <div style={{
+                  fontFamily:"'Share Tech Mono',monospace", fontSize:10,
+                  color: MODES.find(m=>m.key===selectedMode)?.color || 'var(--neon-cyan)',
+                  border: `1px solid ${MODES.find(m=>m.key===selectedMode)?.color || 'var(--neon-cyan)'}`,
+                  padding:'4px 12px', marginBottom:8, letterSpacing:2
+                }}>
+                  {MODES.find(m=>m.key===selectedMode)?.label} · {MODES.find(m=>m.key===selectedMode)?.desc}
+                </div>
                 <p className={styles.label}>YOUR ROOM CODE</p>
                 <div className={styles.codeBox}><span className={styles.codeVal}>{state.roomId}</span></div>
                 <button className={styles.copyBtn} onClick={copyCode}>{copied?'✅ COPIED!':'📋 COPY CODE'}</button>
@@ -123,7 +155,7 @@ export default function Lobby() {
                 <input className={styles.input} value={mmName} onChange={e=>setMmName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&joinMatchmaking()} placeholder="e.g. TrashTalkGod" maxLength={20} disabled={!state.connected} />
                 <AvatarSelect selected={state.myAvatar} onSelect={av => dispatch({ type: 'SET_AVATAR', avatar: av })} />
                 <button className={`${styles.btn} ${styles.btnPurple}`} onClick={joinMatchmaking} disabled={!state.connected}>FIND OPPONENT</button>
-                <p className={styles.hint}>Matched with a random player</p>
+                <p className={styles.hint}>⚔️ STANDARD mode · Matched with a random player</p>
               </>
             ) : (
               <div className={styles.waitingPanel}>
