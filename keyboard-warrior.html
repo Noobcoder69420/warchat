@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KEYBOARD WARRIOR</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --neon-cyan: #00f5ff;
+      --neon-red: #ff003c;
+      --neon-yellow: #ffe600;
+      --neon-green: #00ff88;
+      --neon-purple: #bf00ff;
+      --bg: #050508;
+      --panel: #0a0a12;
+      --border: #1a1a2e;
+      --text: #e0e0ff;
+      --dim: #555577;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Rajdhani', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 245, 255, 0.015) 2px, rgba(0, 245, 255, 0.015) 4px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .scanline {
+      position: fixed;
+      top: -100%;
+      left: 0;
+      right: 0;
+      height: 200%;
+      background: linear-gradient(transparent 50%, rgba(0, 245, 255, 0.03) 50%);
+      background-size: 100% 4px;
+      animation: scanlines 8s linear infinite;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    @keyframes scanlines {
+      0% {
+        transform: translateY(0);
+      }
+
+      100% {
+        transform: translateY(50%);
+      }
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 12px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* HEADER */
+    .header {
+      text-align: center;
+      padding: 16px 0 8px;
+    }
+
+    .logo {
+      font-family: 'Black Ops One', cursive;
+      font-size: clamp(28px, 6vw, 52px);
+      letter-spacing: 4px;
+      color: var(--neon-cyan);
+      text-shadow: 0 0 10px var(--neon-cyan), 0 0 40px rgba(0, 245, 255, 0.4);
+      line-height: 1;
+    }
+
+    .logo span {
+      color: var(--neon-red);
+      text-shadow: 0 0 10px var(--neon-red), 0 0 40px rgba(255, 0, 60, 0.4);
+    }
+
+    .tagline {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--dim);
+      letter-spacing: 3px;
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    /* SCREENS */
+    .screen {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+      flex: 1;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    /* LOBBY */
+    .lobby-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      flex: 1;
+    }
+
+    @media (max-width: 600px) {
+      .lobby-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 20px;
+      position: relative;
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    }
+
+    .panel::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+      border: 1px solid;
+      pointer-events: none;
+    }
+
+    .panel.cyan::before {
+      border-color: var(--neon-cyan);
+      box-shadow: inset 0 0 20px rgba(0, 245, 255, 0.05);
+    }
+
+    .panel.red::before {
+      border-color: var(--neon-red);
+      box-shadow: inset 0 0 20px rgba(255, 0, 60, 0.05);
+    }
+
+    .panel-title {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .panel.cyan .panel-title {
+      color: var(--neon-cyan);
+    }
+
+    .panel.red .panel-title {
+      color: var(--neon-red);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border: none;
+      font-family: 'Black Ops One', cursive;
+      font-size: 14px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: all 0.15s;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+      width: 100%;
+      text-transform: uppercase;
+    }
+
+    .btn-cyan {
+      background: var(--neon-cyan);
+      color: #000;
+    }
+
+    .btn-cyan:hover {
+      background: #fff;
+      box-shadow: 0 0 20px var(--neon-cyan);
+    }
+
+    .btn-red {
+      background: var(--neon-red);
+      color: #fff;
+    }
+
+    .btn-red:hover {
+      background: #ff6688;
+      box-shadow: 0 0 20px var(--neon-red);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--neon-cyan);
+      border: 1px solid var(--neon-cyan);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(0, 245, 255, 0.1);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .input-field {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-bottom-color: var(--neon-cyan);
+      color: var(--text);
+      padding: 10px 14px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 12px;
+    }
+
+    .input-field:focus {
+      border-color: var(--neon-cyan);
+      box-shadow: 0 2px 0 var(--neon-cyan);
+    }
+
+    .input-field::placeholder {
+      color: var(--dim);
+    }
+
+    .room-code-display {
+      background: rgba(0, 245, 255, 0.06);
+      border: 1px dashed var(--neon-cyan);
+      padding: 16px;
+      text-align: center;
+      margin: 12px 0;
+    }
+
+    .room-code-val {
+      font-family: 'Black Ops One', cursive;
+      font-size: 32px;
+      color: var(--neon-cyan);
+      letter-spacing: 8px;
+      text-shadow: 0 0 20px var(--neon-cyan);
+    }
+
+    .room-code-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+      letter-spacing: 2px;
+      margin-top: 4px;
+    }
+
+    .status-line {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 12px;
+      color: var(--dim);
+      text-align: center;
+      padding: 8px;
+    }
+
+    .status-line.ok {
+      color: var(--neon-green);
+    }
+
+    .status-line.err {
+      color: var(--neon-red);
+    }
+
+    .status-line.warn {
+      color: var(--neon-yellow);
+    }
+
+    /* BATTLE SCREEN */
+    .battle-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+    }
+
+    /* Fighter headers */
+    .fighters-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .fighter-card {
+      padding: 10px 14px;
+      position: relative;
+    }
+
+    .fighter-card.p1 {
+      background: linear-gradient(135deg, rgba(0, 245, 255, 0.08), transparent);
+      border-left: 3px solid var(--neon-cyan);
+    }
+
+    .fighter-card.p2 {
+      background: linear-gradient(225deg, rgba(255, 0, 60, 0.08), transparent);
+      border-right: 3px solid var(--neon-red);
+      text-align: right;
+    }
+
+    .fighter-name {
+      font-family: 'Black Ops One', cursive;
+      font-size: clamp(14px, 3vw, 20px);
+      line-height: 1;
+    }
+
+    .fighter-card.p1 .fighter-name {
+      color: var(--neon-cyan);
+    }
+
+    .fighter-card.p2 .fighter-name {
+      color: var(--neon-red);
+    }
+
+    .fighter-score {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--dim);
+      margin-top: 3px;
+    }
+
+    /* VS badge */
+    .vs-badge {
+      font-family: 'Black Ops One', cursive;
+      font-size: 20px;
+      color: var(--neon-yellow);
+      text-shadow: 0 0 15px var(--neon-yellow);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    /* POWER BAR */
+    .powerbar-wrap {
+      padding: 8px 0;
+    }
+
+    .powerbar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      margin-bottom: 4px;
+    }
+
+    .powerbar-labels span:first-child {
+      color: var(--neon-cyan);
+    }
+
+    .powerbar-labels span:last-child {
+      color: var(--neon-red);
+    }
+
+    .powerbar-track {
+      height: 18px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .powerbar-fill-left {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, rgba(0, 245, 255, 0.3), var(--neon-cyan));
+      transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      width: 50%;
+    }
+
+    .powerbar-fill-right {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      background: linear-gradient(270deg, rgba(255, 0, 60, 0.3), var(--neon-red));
+      transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      width: 50%;
+    }
+
+    .powerbar-center {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--neon-yellow);
+      box-shadow: 0 0 8px var(--neon-yellow);
+      transition: left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 2;
+    }
+
+    .powerbar-pct {
+      display: flex;
+      justify-content: space-between;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      margin-top: 3px;
+    }
+
+    .powerbar-pct span:first-child {
+      color: var(--neon-cyan);
+    }
+
+    .powerbar-pct span:last-child {
+      color: var(--neon-red);
+    }
+
+    /* ROUND INFO */
+    .round-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+
+    .round-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      color: var(--dim);
+      letter-spacing: 2px;
+    }
+
+    .round-num {
+      font-family: 'Black Ops One', cursive;
+      font-size: 16px;
+      color: var(--neon-yellow);
+    }
+
+    .timer-display {
+      font-family: 'Black Ops One', cursive;
+      font-size: 28px;
+      color: var(--neon-yellow);
+      text-shadow: 0 0 15px var(--neon-yellow);
+      line-height: 1;
+    }
+
+    .timer-display.urgent {
+      color: var(--neon-red);
+      text-shadow: 0 0 15px var(--neon-red);
+      animation: pulse 0.5s ease infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    .round-dots {
+      display: flex;
+      gap: 4px;
+    }
+
+    .round-dot {
+      width: 10px;
+      height: 10px;
+      border: 1px solid var(--dim);
+    }
+
+    .round-dot.p1-win {
+      background: var(--neon-cyan);
+      border-color: var(--neon-cyan);
+    }
+
+    .round-dot.p2-win {
+      background: var(--neon-red);
+      border-color: var(--neon-red);
+    }
+
+    /* CHAT */
+    .chat-area {
+      flex: 1;
+      min-height: 200px;
+      max-height: 300px;
+      overflow-y: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      scroll-behavior: smooth;
+    }
+
+    .chat-area::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .chat-area::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .chat-area::-webkit-scrollbar-thumb {
+      background: var(--border);
+    }
+
+    .msg-row {
+      display: flex;
+      gap: 8px;
+      animation: msgIn 0.2s ease;
+    }
+
+    .msg-row.p1 {
+      flex-direction: row;
+    }
+
+    .msg-row.p2 {
+      flex-direction: row-reverse;
+    }
+
+    .msg-row.system {
+      justify-content: center;
+    }
+
+    @keyframes msgIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .msg-bubble {
+      max-width: 75%;
+      padding: 8px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.3;
+      position: relative;
+    }
+
+    .msg-row.p1 .msg-bubble {
+      background: rgba(0, 245, 255, 0.08);
+      border-left: 2px solid var(--neon-cyan);
+      color: var(--text);
+      clip-path: polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
+    }
+
+    .msg-row.p2 .msg-bubble {
+      background: rgba(255, 0, 60, 0.08);
+      border-right: 2px solid var(--neon-red);
+      color: var(--text);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+      text-align: right;
+    }
+
+    .msg-row.system .msg-bubble {
+      background: rgba(255, 230, 0, 0.06);
+      border: 1px solid rgba(255, 230, 0, 0.2);
+      color: var(--neon-yellow);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 11px;
+      text-align: center;
+      letter-spacing: 1px;
+      max-width: 100%;
+    }
+
+    .msg-sender {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      letter-spacing: 1px;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+
+    .msg-row.p1 .msg-sender {
+      color: var(--neon-cyan);
+    }
+
+    .msg-row.p2 .msg-sender {
+      color: var(--neon-red);
+      text-align: right;
+    }
+
+    /* Score badge on message */
+    .score-badge {
+      display: inline-flex;
+      gap: 6px;
+      margin-top: 5px;
+      flex-wrap: wrap;
+    }
+
+    .score-tag {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 9px;
+      padding: 1px 5px;
+      letter-spacing: 1px;
+      border: 1px solid;
+    }
+
+    .score-tag.aura {
+      color: var(--neon-purple);
+      border-color: var(--neon-purple);
+      background: rgba(191, 0, 255, 0.1);
+    }
+
+    .score-tag.damage {
+      color: var(--neon-red);
+      border-color: var(--neon-red);
+      background: rgba(255, 0, 60, 0.1);
+    }
+
+    .score-tag.creativity {
+      color: var(--neon-green);
+      border-color: var(--neon-green);
+      background: rgba(0, 255, 136, 0.1);
+    }
+
+    .score-tag.total {
+      color: var(--neon-yellow);
+      border-color: var(--neon-yellow);
+      background: rgba(255, 230, 0, 0.1);
+    }
+
+    .scoring-spinner {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+      animation: blink 0.8s ease infinite;
+      margin-top: 4px;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.2;
+      }
+    }
+
+    /* INPUT ROW */
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .battle-input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-bottom: 2px solid;
+      color: var(--text);
+      padding: 10px 14px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .battle-input.p1-input {
+      border-bottom-color: var(--neon-cyan);
+    }
+
+    .battle-input.p2-input {
+      border-bottom-color: var(--neon-red);
+    }
+
+    .battle-input:focus {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .battle-input::placeholder {
+      color: var(--dim);
+      font-weight: 400;
+    }
+
+    .battle-input:disabled {
+      opacity: 0.3;
+    }
+
+    .send-btn {
+      padding: 10px 20px;
+      border: none;
+      font-family: 'Black Ops One', cursive;
+      font-size: 12px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+      transition: all 0.15s;
+    }
+
+    .send-btn.p1 {
+      background: var(--neon-cyan);
+      color: #000;
+    }
+
+    .send-btn.p2 {
+      background: var(--neon-red);
+      color: #fff;
+    }
+
+    .send-btn:hover {
+      opacity: 0.85;
+      transform: scale(1.03);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ROUND END OVERLAY */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(5, 5, 8, 0.92);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      text-align: center;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .overlay.show {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    .overlay-title {
+      font-family: 'Black Ops One', cursive;
+      font-size: clamp(32px, 8vw, 72px);
+      line-height: 1;
+      letter-spacing: 4px;
+    }
+
+    .overlay-sub {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 14px;
+      color: var(--dim);
+      letter-spacing: 3px;
+    }
+
+    .overlay-winner {
+      font-family: 'Black Ops One', cursive;
+      font-size: clamp(20px, 5vw, 40px);
+      margin: 8px 0;
+    }
+
+    /* WAITING */
+    .waiting-anim {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      justify-content: center;
+      margin: 16px 0;
+    }
+
+    .waiting-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--neon-cyan);
+      animation: dotPulse 1.2s ease infinite;
+    }
+
+    .waiting-dot:nth-child(2) {
+      animation-delay: 0.2s;
+      background: var(--neon-yellow);
+    }
+
+    .waiting-dot:nth-child(3) {
+      animation-delay: 0.4s;
+      background: var(--neon-red);
+    }
+
+    @keyframes dotPulse {
+
+      0%,
+      100% {
+        transform: scaleY(1);
+        opacity: 0.4;
+      }
+
+      50% {
+        transform: scaleY(2);
+        opacity: 1;
+      }
+    }
+
+    .glitch {
+      animation: glitch 3s ease infinite;
+    }
+
+    @keyframes glitch {
+
+      0%,
+      90%,
+      100% {
+        text-shadow: 0 0 10px var(--neon-cyan), 0 0 40px rgba(0, 245, 255, 0.4);
+        transform: none;
+      }
+
+      92% {
+        transform: translate(2px, 0);
+        text-shadow: -2px 0 var(--neon-red), 2px 0 var(--neon-cyan);
+      }
+
+      94% {
+        transform: translate(-2px, 0);
+        text-shadow: 2px 0 var(--neon-red), -2px 0 var(--neon-cyan);
+      }
+
+      96% {
+        transform: none;
+      }
+    }
+
+    /* MATCH END */
+    .match-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      max-width: 400px;
+      width: 100%;
+    }
+
+    .stat-block {
+      padding: 12px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+
+    .stat-val {
+      font-family: 'Black Ops One', cursive;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .stat-lbl {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+      letter-spacing: 2px;
+      margin-top: 4px;
+    }
+
+    .copy-hint {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+      letter-spacing: 1px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border: 1px dashed var(--dim);
+      transition: all 0.2s;
+    }
+
+    .copy-hint:hover {
+      color: var(--neon-cyan);
+      border-color: var(--neon-cyan);
+    }
+
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+      margin: 4px 0;
+    }
+
+    label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+      letter-spacing: 2px;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .char-count {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+      text-align: right;
+      margin-top: -8px;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="scanline"></div>
+
+  <div class="container">
+    <div class="header">
+      <div class="logo glitch">KEY<span>BOARD</span> WARRIOR</div>
+      <div class="tagline">AI-JUDGED TRASH TALK TOURNAMENT // PHASE 1</div>
+    </div>
+
+    <!-- LOBBY SCREEN -->
+    <div class="screen active" id="screen-lobby">
+      <div class="lobby-grid">
+        <!-- HOST PANEL -->
+        <div class="panel cyan">
+          <div class="panel-title">⚡ Create Battle Room</div>
+          <label>YOUR FIGHTER NAME</label>
+          <input class="input-field" id="host-name" placeholder="e.g. ChadGPT" maxlength="20">
+          <button class="btn btn-cyan" id="btn-create">CREATE ROOM</button>
+          <div class="divider" style="margin-top:12px"></div>
+          <div id="host-waiting" style="display:none">
+            <div class="room-code-display">
+              <div class="room-code-val" id="room-code-display">----</div>
+              <div class="room-code-label">SHARE THIS CODE WITH YOUR OPPONENT</div>
+            </div>
+            <div class="copy-hint" onclick="copyCode()">📋 TAP TO COPY CODE</div>
+            <div class="waiting-anim">
+              <div class="waiting-dot"></div>
+              <div class="waiting-dot"></div>
+              <div class="waiting-dot"></div>
+            </div>
+            <div class="status-line warn">WAITING FOR OPPONENT TO JOIN...</div>
+          </div>
+          <div id="host-status" class="status-line"></div>
+        </div>
+
+        <!-- JOIN PANEL -->
+        <div class="panel red">
+          <div class="panel-title">🔥 Join Battle Room</div>
+          <label>YOUR FIGHTER NAME</label>
+          <input class="input-field" id="join-name" placeholder="e.g. KeyboardKing" maxlength="20">
+          <label>ROOM CODE</label>
+          <input class="input-field" id="join-code" placeholder="e.g. A1B2" maxlength="6"
+            style="text-transform:uppercase;letter-spacing:4px;font-size:20px;">
+          <button class="btn btn-red" id="btn-join">JOIN ROOM</button>
+          <div id="join-status" class="status-line"></div>
+        </div>
+      </div>
+
+      <div class="status-line" style="font-size:11px">
+        ⚠️ This uses PeerJS for P2P connection. Both players need to be on this page simultaneously.
+      </div>
+    </div>
+
+    <!-- BATTLE SCREEN -->
+    <div class="screen" id="screen-battle">
+      <div class="battle-layout">
+
+        <!-- Round info -->
+        <div class="round-row">
+          <div>
+            <div class="round-label">ROUND</div>
+            <div class="round-num" id="round-num">1</div>
+          </div>
+          <div style="text-align:center">
+            <div class="round-dots" id="round-dots"></div>
+            <div class="round-label" style="text-align:center;margin-top:4px">BEST OF 5</div>
+          </div>
+          <div style="text-align:right">
+            <div class="round-label">TIME</div>
+            <div class="timer-display" id="timer">30</div>
+          </div>
+        </div>
+
+        <!-- Fighters -->
+        <div class="fighters-row">
+          <div class="fighter-card p1">
+            <div class="fighter-name" id="p1-name">PLAYER 1</div>
+            <div class="fighter-score" id="p1-score">SCORE: 0</div>
+          </div>
+          <div class="vs-badge">VS</div>
+          <div class="fighter-card p2">
+            <div class="fighter-name" id="p2-name">PLAYER 2</div>
+            <div class="fighter-score" id="p2-score">SCORE: 0</div>
+          </div>
+        </div>
+
+        <!-- Power bar -->
+        <div class="powerbar-wrap">
+          <div class="powerbar-labels">
+            <span id="pb-p1-label">PLAYER 1</span>
+            <span style="color:var(--dim);font-size:10px;letter-spacing:2px">POWER BAR</span>
+            <span id="pb-p2-label">PLAYER 2</span>
+          </div>
+          <div class="powerbar-track">
+            <div class="powerbar-fill-left" id="pb-left"></div>
+            <div class="powerbar-fill-right" id="pb-right"></div>
+            <div class="powerbar-center" id="pb-center"></div>
+          </div>
+          <div class="powerbar-pct">
+            <span id="pb-p1-pct">50%</span>
+            <span id="pb-p2-pct">50%</span>
+          </div>
+        </div>
+
+        <!-- Chat -->
+        <div class="chat-area" id="chat-area">
+          <div class="msg-row system">
+            <div class="msg-bubble">⚔️ BATTLE STARTED — TRASH TALK COMMENCES</div>
+          </div>
+        </div>
+
+        <!-- Input -->
+        <div class="input-row" id="input-row">
+          <input class="battle-input" id="battle-input" maxlength="200" placeholder="Type your best shot...">
+          <button class="send-btn" id="send-btn">SEND</button>
+        </div>
+        <div class="char-count"><span id="char-count">0</span>/200</div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ROUND END OVERLAY -->
+  <div class="overlay" id="overlay-round">
+    <div class="overlay-title" id="overlay-round-title" style="color:var(--neon-yellow)">ROUND OVER</div>
+    <div class="overlay-sub">ROUND WINNER</div>
+    <div class="overlay-winner" id="overlay-round-winner"></div>
+    <div class="match-stats" id="overlay-scores"></div>
+    <div class="overlay-sub" style="animation: blink 1s ease infinite" id="overlay-next-text">NEXT ROUND STARTING...
+    </div>
+  </div>
+
+  <!-- MATCH END OVERLAY -->
+  <div class="overlay" id="overlay-match">
+    <div class="overlay-sub">MATCH CHAMPION</div>
+    <div class="overlay-title" id="overlay-match-winner" style="color:var(--neon-yellow)">---</div>
+    <div class="overlay-sub" style="margin-top:8px">FINAL SCORES</div>
+    <div class="match-stats" id="final-stats"></div>
+    <button class="btn btn-cyan" style="max-width:300px;margin-top:16px" onclick="resetGame()">REMATCH</button>
+  </div>
+
+  <script>
+    // ─── CONFIG ───────────────────────────────────────────────────────────────────
+    const ROUND_TIME = 30;
+    const MAX_ROUNDS = 5;
+    const ROUNDS_TO_WIN = 3;
+
+    // ─── STATE ────────────────────────────────────────────────────────────────────
+    let peer = null;
+    let conn = null;
+    let isHost = false;
+    let myName = '';
+    let oppName = '';
+    let myRole = ''; // 'p1' or 'p2'
+
+    let gameState = {
+      round: 1,
+      timer: ROUND_TIME,
+      timerActive: false,
+      p1Score: 0,
+      p2Score: 0,
+      p1RoundWins: 0,
+      p2RoundWins: 0,
+      roundMessages: [],
+      roundActive: false,
+      matchOver: false
+    };
+
+    let timerInterval = null;
+
+    // ─── PEER SETUP ───────────────────────────────────────────────────────────────
+    function initPeer(id) {
+      const peerId = id || generateCode();
+      peer = new Peer(peerId, {
+        host: '0.peerjs.com',
+        port: 443,
+        path: '/',
+        secure: true
+      });
+
+      peer.on('open', (id) => {
+        if (isHost) {
+          document.getElementById('room-code-display').textContent = id.toUpperCase();
+          document.getElementById('host-waiting').style.display = 'block';
+          document.getElementById('host-status').textContent = '';
+          setStatus('host-status', '');
+        }
+      });
+
+      peer.on('connection', (c) => {
+        conn = c;
+        setupConn();
+      });
+
+      peer.on('error', (err) => {
+        const msg = err.type === 'peer-unavailable'
+          ? 'ROOM NOT FOUND. CHECK CODE.'
+          : 'CONNECTION ERROR: ' + err.type;
+        setStatus(isHost ? 'host-status' : 'join-status', msg, 'err');
+      });
+    }
+
+    function setupConn() {
+      conn.on('open', () => {
+        if (isHost) {
+          // Host sends handshake
+          sendMsg({ type: 'handshake', hostName: myName });
+        }
+      });
+
+      conn.on('data', (data) => {
+        handleMsg(data);
+      });
+
+      conn.on('close', () => {
+        if (!gameState.matchOver) {
+          addSystemMsg('⚠️ OPPONENT DISCONNECTED');
+        }
+      });
+    }
+
+    function sendMsg(data) {
+      if (conn && conn.open) {
+        conn.send(data);
+      }
+    }
+
+    function handleMsg(data) {
+      switch (data.type) {
+        case 'handshake':
+          oppName = data.hostName;
+          myRole = 'p2';
+          sendMsg({ type: 'handshake_ack', guestName: myName });
+          startBattle();
+          break;
+        case 'handshake_ack':
+          oppName = data.guestName;
+          myRole = 'p1';
+          startBattle();
+          break;
+        case 'chat':
+          receiveOppMessage(data.text, data.msgId);
+          break;
+        case 'score_result':
+          applyScore(data);
+          break;
+        case 'round_end':
+          handleRoundEnd(data);
+          break;
+        case 'next_round':
+          startNextRound();
+          break;
+        case 'match_end':
+          handleMatchEnd(data);
+          break;
+      }
+    }
+
+    // ─── LOBBY HANDLERS ───────────────────────────────────────────────────────────
+    document.getElementById('btn-create').addEventListener('click', () => {
+      const name = document.getElementById('host-name').value.trim();
+      if (!name) { setStatus('host-status', 'ENTER YOUR FIGHTER NAME', 'err'); return; }
+      myName = name;
+      isHost = true;
+      document.getElementById('btn-create').disabled = true;
+      setStatus('host-status', 'CONNECTING TO RELAY...', 'warn');
+      initPeer(generateCode());
+    });
+
+    document.getElementById('btn-join').addEventListener('click', () => {
+      const name = document.getElementById('join-name').value.trim();
+      const code = document.getElementById('join-code').value.trim().toUpperCase();
+      if (!name) { setStatus('join-status', 'ENTER YOUR FIGHTER NAME', 'err'); return; }
+      if (!code || code.length < 4) { setStatus('join-status', 'ENTER VALID ROOM CODE', 'err'); return; }
+      myName = name;
+      isHost = false;
+      document.getElementById('btn-join').disabled = true;
+      setStatus('join-status', 'CONNECTING...', 'warn');
+
+      initPeer(null);
+      peer.on('open', () => {
+        conn = peer.connect(code.toLowerCase());
+        setupConn();
+      });
+    });
+
+    document.getElementById('join-code').addEventListener('input', function () {
+      this.value = this.value.toUpperCase();
+    });
+
+    // ─── BATTLE START ─────────────────────────────────────────────────────────────
+    function startBattle() {
+      const p1 = myRole === 'p1' ? myName : oppName;
+      const p2 = myRole === 'p2' ? myName : oppName;
+
+      document.getElementById('p1-name').textContent = p1;
+      document.getElementById('p2-name').textContent = p2;
+      document.getElementById('pb-p1-label').textContent = p1;
+      document.getElementById('pb-p2-label').textContent = p2;
+
+      document.getElementById('screen-lobby').classList.remove('active');
+      document.getElementById('screen-battle').classList.add('active');
+
+      const input = document.getElementById('battle-input');
+      const sendBtn = document.getElementById('send-btn');
+
+      input.classList.add(myRole + '-input');
+      sendBtn.classList.add(myRole);
+      input.placeholder = myRole === 'p1' ? '💬 P1: Type your shot...' : '💬 P2: Type your shot...';
+
+      renderRoundDots();
+      startRound();
+    }
+
+    function startRound() {
+      gameState.roundActive = true;
+      gameState.timerActive = true;
+      gameState.timer = ROUND_TIME;
+      gameState.roundMessages = [];
+      document.getElementById('timer').textContent = ROUND_TIME;
+      document.getElementById('timer').className = 'timer-display';
+      document.getElementById('round-num').textContent = gameState.round;
+      document.getElementById('battle-input').disabled = false;
+      document.getElementById('send-btn').disabled = false;
+
+      addSystemMsg(`⚔️ ROUND ${gameState.round} — FIGHT!`);
+
+      timerInterval = setInterval(() => {
+        gameState.timer--;
+        document.getElementById('timer').textContent = gameState.timer;
+        if (gameState.timer <= 10) {
+          document.getElementById('timer').className = 'timer-display urgent';
+        }
+        if (gameState.timer <= 0) {
+          clearInterval(timerInterval);
+          endRound();
+        }
+      }, 1000);
+    }
+
+    function endRound() {
+      if (!gameState.roundActive) return;
+      gameState.roundActive = false;
+      gameState.timerActive = false;
+      document.getElementById('battle-input').disabled = true;
+      document.getElementById('send-btn').disabled = true;
+      clearInterval(timerInterval);
+
+      const p1 = gameState.p1Score;
+      const p2 = gameState.p2Score;
+      let roundWinner = '';
+
+      if (p1 > p2) {
+        gameState.p1RoundWins++;
+        roundWinner = myRole === 'p1' ? myName : oppName;
+      } else if (p2 > p1) {
+        gameState.p2RoundWins++;
+        roundWinner = myRole === 'p2' ? myName : oppName;
+      } else {
+        roundWinner = 'TIE';
+      }
+
+      renderRoundDots();
+
+      const matchDone = gameState.p1RoundWins >= ROUNDS_TO_WIN || gameState.p2RoundWins >= ROUNDS_TO_WIN || gameState.round >= MAX_ROUNDS;
+
+      if (isHost) {
+        if (matchDone) {
+          const matchWinner = gameState.p1RoundWins > gameState.p2RoundWins
+            ? (myRole === 'p1' ? myName : oppName)
+            : (myRole === 'p2' ? myName : oppName);
+          sendMsg({ type: 'match_end', winner: matchWinner, p1Wins: gameState.p1RoundWins, p2Wins: gameState.p2RoundWins });
+          handleMatchEnd({ winner: matchWinner, p1Wins: gameState.p1RoundWins, p2Wins: gameState.p2RoundWins });
+        } else {
+          sendMsg({ type: 'round_end', winner: roundWinner, p1Score: p1, p2Score: p2 });
+          handleRoundEnd({ winner: roundWinner, p1Score: p1, p2Score: p2 });
+        }
+      }
+    }
+
+    function handleRoundEnd(data) {
+      showRoundOverlay(data.winner, data.p1Score, data.p2Score);
+      gameState.p1Score = 0;
+      gameState.p2Score = 0;
+      updatePowerBar();
+      updateScoreDisplay();
+
+      if (!isHost) {
+        gameState.round++;
+      }
+
+      setTimeout(() => {
+        hideOverlay('overlay-round');
+        if (isHost) {
+          gameState.round++;
+          sendMsg({ type: 'next_round' });
+          startRound();
+        }
+      }, 3500);
+    }
+
+    function startNextRound() {
+      gameState.round++;
+      startRound();
+    }
+
+    function handleMatchEnd(data) {
+      gameState.matchOver = true;
+      showMatchOverlay(data.winner, data.p1Wins, data.p2Wins);
+    }
+
+    // ─── MESSAGING ────────────────────────────────────────────────────────────────
+    const msgId = () => Math.random().toString(36).slice(2, 8);
+
+    document.getElementById('send-btn').addEventListener('click', sendBattleMessage);
+    document.getElementById('battle-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendBattleMessage();
+    });
+    document.getElementById('battle-input').addEventListener('input', function () {
+      document.getElementById('char-count').textContent = this.value.length;
+    });
+
+    function sendBattleMessage() {
+      if (!gameState.roundActive) return;
+      const input = document.getElementById('battle-input');
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+      document.getElementById('char-count').textContent = '0';
+
+      const id = msgId();
+      const isP1 = myRole === 'p1';
+
+      // Show my message
+      addMessage(myRole, myName, text, id);
+
+      // Send to opponent
+      sendMsg({ type: 'chat', text, msgId: id });
+
+      // Judge with AI
+      judgeMessage(text, id, myRole);
+    }
+
+    function receiveOppMessage(text, id) {
+      const oppRole = myRole === 'p1' ? 'p2' : 'p1';
+      addMessage(oppRole, oppName, text, id);
+      // Only host judges (to avoid double-scoring)
+      if (isHost) {
+        judgeMessage(text, id, oppRole, true);
+      }
+    }
+
+    // ─── AI JUDGING (Fake Heuristic Judge) ─────────────────────────────────────────
+    async function judgeMessage(text, id, role, broadcast) {
+      const bubble = document.getElementById('bubble-' + id);
+      if (bubble) {
+        const spinner = document.createElement('div');
+        spinner.className = 'scoring-spinner';
+        spinner.textContent = '[ SCORING... ]';
+        spinner.id = 'spinner-' + id;
+        bubble.appendChild(spinner);
+      }
+
+      // Simulate network delay for "AI" feel
+      await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
+
+      const lowerText = text.toLowerCase();
+
+      // Base stats
+      let aura = 3;
+      let damage = 2;
+      let creativity = Math.floor(Math.random() * 4) + 2; // RNG element (2-5)
+
+      // Dictionary of trigger words
+      const weakInsults = ['noob', 'bot', 'trash', 'bad', 'suck', 'kid', 'loser'];
+      const strongInsults = ['ratio', 'clapped', 'destroyed', 'cringe', 'skill issue', 'npc', 'boomer'];
+
+      // Calculate Damage
+      weakInsults.forEach(w => { if (lowerText.includes(w)) damage += 1; });
+      strongInsults.forEach(w => { if (lowerText.includes(w)) damage += 2; });
+      if (damage > 10) damage = 10;
+
+      // Calculate Aura (Caps, length, punctuation)
+      if (text === text.toUpperCase() && text.length > 5) aura += 2; // ALL CAPS bonus
+      if (text.includes('!') || text.includes('?')) aura += 1;
+      if (lowerText.length > 40) aura += 1; // Long response
+      if (lowerText.length < 10 && damage > 5) aura += 2; // Short & deadly drop
+      if (aura > 10) aura = 10;
+
+      // Calculate Creativity
+      const words = lowerText.split(/\s+/).length;
+      if (words > 8) creativity += 2;
+      const uniqueWords = new Set(lowerText.split(/\s+/)).size;
+      if (uniqueWords === words && words > 5) creativity += 2; // Vocabulary bonus
+      if (creativity > 10) creativity = 10;
+
+      const total = aura + damage + creativity;
+
+      // Generate Verdict
+      let verdict = 'DECENT SHOT';
+      if (total >= 25) verdict = 'FATAL STRIKE';
+      else if (total > 18) verdict = 'SOLID BURN';
+      else if (total < 10) verdict = 'WEAK SAUCE';
+
+      const scores = { aura, damage, creativity, total, verdict };
+
+      applyScoreLocally(id, role, scores);
+
+      if (broadcast) {
+        sendMsg({ type: 'score_result', msgId: id, role, scores });
+      }
+    }
+
+    function applyScore(data) {
+      applyScoreLocally(data.msgId, data.role, data.scores);
+    }
+
+    function applyScoreLocally(id, role, scores) {
+      const spinner = document.getElementById('spinner-' + id);
+      if (spinner) spinner.remove();
+
+      const bubble = document.getElementById('bubble-' + id);
+      if (bubble) {
+        const badge = document.createElement('div');
+        badge.className = 'score-badge';
+        badge.innerHTML = `
+      <span class="score-tag aura">AURA ${scores.aura}</span>
+      <span class="score-tag damage">DMG ${scores.damage}</span>
+      <span class="score-tag creativity">OG ${scores.creativity}</span>
+      <span class="score-tag total">+${scores.total}pts</span>
+    `;
+        bubble.appendChild(badge);
+
+        const verdict = document.createElement('div');
+        verdict.style.cssText = 'font-family:Share Tech Mono,monospace;font-size:9px;color:#ffe600;margin-top:3px;letter-spacing:1px';
+        verdict.textContent = '» ' + (scores.verdict || '').toUpperCase();
+        bubble.appendChild(verdict);
+      }
+
+      if (role === 'p1') {
+        gameState.p1Score += (scores.total || 0);
+        document.getElementById('p1-score').textContent = `SCORE: ${gameState.p1Score}`;
+      } else {
+        gameState.p2Score += (scores.total || 0);
+        document.getElementById('p2-score').textContent = `SCORE: ${gameState.p2Score}`;
+      }
+
+      updatePowerBar();
+    }
+
+    // ─── UI HELPERS ───────────────────────────────────────────────────────────────
+    function addMessage(role, name, text, id) {
+      const chat = document.getElementById('chat-area');
+      const row = document.createElement('div');
+      row.className = `msg-row ${role}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.id = 'bubble-' + id;
+
+      const sender = document.createElement('div');
+      sender.className = 'msg-sender';
+      sender.textContent = name.toUpperCase();
+
+      const msg = document.createElement('div');
+      msg.textContent = text;
+
+      bubble.appendChild(sender);
+      bubble.appendChild(msg);
+      row.appendChild(bubble);
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function addSystemMsg(text) {
+      const chat = document.getElementById('chat-area');
+      const row = document.createElement('div');
+      row.className = 'msg-row system';
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.textContent = text;
+      row.appendChild(bubble);
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function updatePowerBar() {
+      const p1 = gameState.p1Score;
+      const p2 = gameState.p2Score;
+      const total = p1 + p2;
+      const p1pct = total === 0 ? 50 : Math.round((p1 / total) * 100);
+      const p2pct = 100 - p1pct;
+
+      document.getElementById('pb-left').style.width = p1pct + '%';
+      document.getElementById('pb-right').style.width = p2pct + '%';
+      document.getElementById('pb-center').style.left = p1pct + '%';
+      document.getElementById('pb-p1-pct').textContent = p1pct + '%';
+      document.getElementById('pb-p2-pct').textContent = p2pct + '%';
+    }
+
+    function updateScoreDisplay() {
+      document.getElementById('p1-score').textContent = 'SCORE: 0';
+      document.getElementById('p2-score').textContent = 'SCORE: 0';
+    }
+
+    function renderRoundDots() {
+      const dots = document.getElementById('round-dots');
+      dots.innerHTML = '';
+      for (let i = 0; i < ROUNDS_TO_WIN; i++) {
+        const d = document.createElement('div');
+        d.className = 'round-dot';
+        if (i < gameState.p1RoundWins) d.classList.add('p1-win');
+        dots.appendChild(d);
+      }
+      const sep = document.createElement('div');
+      sep.style.cssText = 'width:6px;height:10px;background:var(--dim)';
+      dots.appendChild(sep);
+      for (let i = 0; i < ROUNDS_TO_WIN; i++) {
+        const d = document.createElement('div');
+        d.className = 'round-dot';
+        if (i < gameState.p2RoundWins) d.classList.add('p2-win');
+        dots.appendChild(d);
+      }
+    }
+
+    function showRoundOverlay(winner, p1s, p2s) {
+      const p1name = document.getElementById('p1-name').textContent;
+      const p2name = document.getElementById('p2-name').textContent;
+
+      const title = document.getElementById('overlay-round-title');
+      title.textContent = winner === 'TIE' ? 'TIE ROUND!' : 'ROUND OVER!';
+
+      const winnerEl = document.getElementById('overlay-round-winner');
+      if (winner === 'TIE') {
+        winnerEl.style.color = 'var(--neon-yellow)';
+        winnerEl.textContent = '⚡ DEAD HEAT';
+      } else {
+        const isP1Win = winner === p1name;
+        winnerEl.style.color = isP1Win ? 'var(--neon-cyan)' : 'var(--neon-red)';
+        winnerEl.textContent = winner.toUpperCase() + ' WINS!';
+      }
+
+      const scores = document.getElementById('overlay-scores');
+      scores.innerHTML = `
+    <div class="stat-block" style="border-color:var(--neon-cyan)">
+      <div class="stat-val" style="color:var(--neon-cyan)">${p1s}</div>
+      <div class="stat-lbl">${p1name}</div>
+    </div>
+    <div class="stat-block" style="border-color:var(--neon-red)">
+      <div class="stat-val" style="color:var(--neon-red)">${p2s}</div>
+      <div class="stat-lbl">${p2name}</div>
+    </div>
+  `;
+
+      document.getElementById('overlay-round').classList.add('show');
+    }
+
+    function showMatchOverlay(winner, p1wins, p2wins) {
+      const p1name = document.getElementById('p1-name').textContent;
+      const p2name = document.getElementById('p2-name').textContent;
+      const isP1 = winner === p1name;
+
+      const winnerEl = document.getElementById('overlay-match-winner');
+      winnerEl.textContent = winner.toUpperCase();
+      winnerEl.style.color = isP1 ? 'var(--neon-cyan)' : 'var(--neon-red)';
+
+      document.getElementById('final-stats').innerHTML = `
+    <div class="stat-block" style="border-color:var(--neon-cyan)">
+      <div class="stat-val" style="color:var(--neon-cyan)">${p1wins}</div>
+      <div class="stat-lbl">${p1name} ROUNDS</div>
+    </div>
+    <div class="stat-block" style="border-color:var(--neon-red)">
+      <div class="stat-val" style="color:var(--neon-red)">${p2wins}</div>
+      <div class="stat-lbl">${p2name} ROUNDS</div>
+    </div>
+  `;
+
+      document.getElementById('overlay-match').classList.add('show');
+    }
+
+    function hideOverlay(id) {
+      document.getElementById(id).classList.remove('show');
+    }
+
+    function setStatus(id, msg, type) {
+      const el = document.getElementById(id);
+      el.textContent = msg;
+      el.className = 'status-line' + (type ? ' ' + type : '');
+    }
+
+    function generateCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      return Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('').toLowerCase();
+    }
+
+    function copyCode() {
+      const code = document.getElementById('room-code-display').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        document.querySelector('.copy-hint').textContent = '✅ COPIED!';
+        setTimeout(() => document.querySelector('.copy-hint').textContent = '📋 TAP TO COPY CODE', 2000);
+      });
+    }
+
+    function resetGame() {
+      location.reload();
+    }
+  </script>
+</body>
+
+</html>
