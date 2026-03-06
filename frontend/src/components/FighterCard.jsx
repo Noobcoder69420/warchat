@@ -1,3 +1,5 @@
+import { getAvatarSVG } from '../avatars'
+
 export default function FighterCard({ name, score, side, isMe, avatar }) {
   const color = side === 'p1' ? 'var(--neon-cyan)' : 'var(--neon-red)'
   const borderSide = side === 'p1' ? { borderLeft: `3px solid ${color}` } : { borderRight: `3px solid ${color}` }
@@ -13,17 +15,15 @@ export default function FighterCard({ name, score, side, isMe, avatar }) {
       flexDirection: side === 'p2' ? 'row-reverse' : 'row',
       alignItems: 'center', gap: 8
     }}>
-      {/* Avatar */}
+      {/* SVG Portrait */}
       <div style={{
-        width: 36, height: 36, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 22,
+        width: 44, height: 44, flexShrink: 0,
         border: `1px solid ${avatar?.color || color}`,
-        background: `${avatar?.color || color}15`,
-        boxShadow: `0 0 8px ${avatar?.color || color}40`
-      }}>
-        {avatar?.emoji || '⚔️'}
-      </div>
+        boxShadow: `0 0 10px ${avatar?.color || color}50`,
+        overflow: 'hidden', lineHeight: 0,
+      }}
+        dangerouslySetInnerHTML={{ __html: getAvatarSVG(avatar?.id || 'rage', 44) }}
+      />
 
       <div>
         <div style={{

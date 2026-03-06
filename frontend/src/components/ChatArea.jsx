@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { getAvatarSVG, getAvatar } from '../avatars'
 import sfx from '../sfx'
 
 const TAG_COLORS = {
@@ -103,17 +104,16 @@ function Message({ msg, myRole }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: isP1 ? 'row' : 'row-reverse', gap: 8 }}>
-      {/* Avatar bubble */}
+      {/* SVG Portrait bubble */}
       <div style={{
         width: 28, height: 28, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 18,
         border: `1px solid ${accentColor}`,
-        background: `${accentColor}12`,
-        alignSelf: 'flex-end'
-      }}>
-        {msg.avatar || (isP1 ? '⚔️' : '🔥')}
-      </div>
+        boxShadow: `0 0 6px ${accentColor}40`,
+        overflow: 'hidden', lineHeight: 0,
+        alignSelf: 'flex-end',
+      }}
+        dangerouslySetInnerHTML={{ __html: getAvatarSVG(msg.avatar || (isP1 ? 'rage' : 'skull'), 28) }}
+      />
 
       <div style={bubbleStyle}>
         <div style={{
