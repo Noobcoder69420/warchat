@@ -53,6 +53,35 @@
   animation: blink 1s ease infinite;
 }
 
+.onlineBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.onlineDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--neon-green);
+  box-shadow: 0 0 8px var(--neon-green);
+  animation: pulse 2s ease infinite;
+}
+
+.onlineCount {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--neon-green);
+  letter-spacing: 2px;
+}
+
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.6; transform: scale(0.85); }
+}
+
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
 .status {

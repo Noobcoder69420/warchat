@@ -114,6 +114,49 @@ export default function Battle() {
         </div>
       </div>
 
+      {/* Opponent disconnected overlay */}
+      {state.oppDisconnected && !state.matchOver && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 150,
+          background: 'rgba(5,5,8,0.96)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 16, textAlign: 'center', padding: 24,
+          animation: 'fadeIn 0.3s ease'
+        }}>
+          <div style={{ fontSize: 48 }}>⚠️</div>
+          <div style={{
+            fontFamily: "'Black Ops One',cursive",
+            fontSize: 'clamp(24px,6vw,48px)',
+            color: 'var(--neon-yellow)',
+            textShadow: '0 0 20px var(--neon-yellow)',
+            letterSpacing: 3
+          }}>OPPONENT LEFT</div>
+          <div style={{
+            fontFamily: "'Share Tech Mono',monospace",
+            fontSize: 13, color: 'var(--dim)',
+            letterSpacing: 1, maxWidth: 280
+          }}>
+            {state.oppName} disconnected from the battle.
+          </div>
+          <button
+            onClick={handleLeave}
+            style={{
+              marginTop: 8,
+              padding: '13px 32px',
+              background: 'var(--neon-cyan)', color: '#000',
+              border: 'none',
+              fontFamily: "'Black Ops One',cursive",
+              fontSize: 14, letterSpacing: 2, cursor: 'pointer',
+              clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))'
+            }}
+          >
+            BACK TO LOBBY
+          </button>
+          <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
+        </div>
+      )}
+
       {/* Countdown overlay */}
       {state.showCountdown && (
         <Countdown

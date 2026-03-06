@@ -58,6 +58,12 @@ export default function Lobby() {
         <header className={styles.header}>
           <h1 className={styles.logo}>KEY<span>BOARD</span> WARRIOR</h1>
           <p className={styles.tagline}>AI-JUDGED TRASH TALK TOURNAMENT</p>
+          <div className={styles.onlineBar}>
+            <span className={styles.onlineDot} />
+            <span className={styles.onlineCount}>
+              {state.onlineCount} {state.onlineCount === 1 ? 'WARRIOR' : 'WARRIORS'} ONLINE
+            </span>
+          </div>
           {!state.connected && <p className={styles.connecting}>⚡ CONNECTING TO SERVER...</p>}
         </header>
 
