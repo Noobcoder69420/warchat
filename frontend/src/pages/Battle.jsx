@@ -220,6 +220,8 @@ export default function Battle() {
       <MatchOverlay
         matchOver={state.matchOver}
         winner={state.matchWinner}
+        winnerRole={state.matchWinnerRole}
+        myRole={state.myRole}
         myName={state.myName}
         p1Name={p1Name} p2Name={p2Name}
         p1Wins={state.p1RoundWins} p2Wins={state.p2RoundWins}

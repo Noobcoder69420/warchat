@@ -89,12 +89,23 @@ def end_round(room_id):
         'match_over': match_over
     }, room=room_id)
     if match_over:
-        match_winner = room['players']['p1']['name'] if p1_wins > p2_wins else (room['players']['p2']['name'] if p2_wins > p1_wins else 'TIE')
+        if p1_wins > p2_wins:
+            match_winner = room['players']['p1']['name']
+            match_winner_role = 'p1'
+        elif p2_wins > p1_wins:
+            match_winner = room['players']['p2']['name']
+            match_winner_role = 'p2'
+        else:
+            match_winner = 'TIE'
+            match_winner_role = 'tie'
         def delayed_match_end():
             time.sleep(3.5)
             socketio.emit('match_end', {
-                'winner': match_winner, 'p1_wins': p1_wins, 'p2_wins': p2_wins,
-                'p1_name': room['players']['p1']['name'], 'p2_name': room['players']['p2']['name']
+                'winner': match_winner,
+                'winner_role': match_winner_role,
+                'p1_wins': p1_wins, 'p2_wins': p2_wins,
+                'p1_name': room['players']['p1']['name'],
+                'p2_name': room['players']['p2']['name']
             }, room=room_id)
             room_manager.set_status(room_id, 'finished')
         threading.Thread(target=delayed_match_end, daemon=True).start()

@@ -16,7 +16,7 @@ const initialState = {
   p1RoundWins: 0, p2RoundWins: 0,
   roundActive: false,
   showCountdown: false,
-  matchOver: false, matchWinner: '',
+  matchOver: false, matchWinner: '', matchWinnerRole: '',
   messages: [],
   statusMsg: '', statusType: '',
   matchmaking: false,
@@ -55,7 +55,7 @@ function reducer(state, action) {
         showCountdown: true,
         timer: 30, p1Score: 0, p2Score: 0,
         p1RoundWins: 0, p2RoundWins: 0,
-        messages: [], matchOver: false, matchWinner: '',
+        messages: [], matchOver: false, matchWinner: '', matchWinnerRole: '',
         lastHit: null, oppDisconnected: false, oppReconnecting: false,
       }
 
@@ -107,7 +107,7 @@ function reducer(state, action) {
       }
 
     case 'MATCH_END':
-      return { ...state, matchOver: true, matchWinner: action.winner, roundActive: false, screen: 'finished' }
+      return { ...state, matchOver: true, matchWinner: action.winner, matchWinnerRole: action.winner_role, roundActive: false, screen: 'finished' }
 
     case 'OPP_DISCONNECTED':
       return { ...state, oppDisconnected: true, roundActive: false, oppReconnecting: false }

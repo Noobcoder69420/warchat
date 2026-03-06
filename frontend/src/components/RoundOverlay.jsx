@@ -41,11 +41,12 @@ export function RoundOverlay({ p1Name, p2Name, p1Score, p2Score, p1RoundWins, p2
   )
 }
 
-export function MatchOverlay({ matchOver, winner, myName, p1Name, p2Name, p1Wins, p2Wins, onRematch, onLeave }) {
+export function MatchOverlay({ matchOver, winner, winnerRole, myRole, myName, p1Name, p2Name, p1Wins, p2Wins, onRematch, onLeave }) {
   if (!matchOver) return null
-  const isMyWin = winner === myName
-  const isTie = winner === 'TIE'
-  const winColor = isTie ? 'var(--neon-yellow)' : winner === p1Name ? 'var(--neon-cyan)' : 'var(--neon-red)'
+  const isTie = winnerRole === 'tie' || winner === 'TIE'
+  // Use role comparison — immune to name whitespace/case mismatches
+  const isMyWin = !isTie && winnerRole === myRole
+  const winColor = isTie ? 'var(--neon-yellow)' : winnerRole === 'p1' ? 'var(--neon-cyan)' : 'var(--neon-red)'
 
   return (
     <div style={{
