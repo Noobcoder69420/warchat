@@ -1,4 +1,4 @@
-export default function FighterCard({ name, score, side, isMe }) {
+export default function FighterCard({ name, score, side, isMe, avatar }) {
   const color = side === 'p1' ? 'var(--neon-cyan)' : 'var(--neon-red)'
   const borderSide = side === 'p1' ? { borderLeft: `3px solid ${color}` } : { borderRight: `3px solid ${color}` }
   const bg = side === 'p1'
@@ -7,27 +7,41 @@ export default function FighterCard({ name, score, side, isMe }) {
 
   return (
     <div style={{
-      padding: '10px 14px',
-      background: bg,
+      padding: '8px 12px', background: bg,
       textAlign: side === 'p2' ? 'right' : 'left',
-      ...borderSide
+      ...borderSide, display: 'flex',
+      flexDirection: side === 'p2' ? 'row-reverse' : 'row',
+      alignItems: 'center', gap: 8
     }}>
+      {/* Avatar */}
       <div style={{
-        fontFamily: "'Black Ops One', cursive",
-        fontSize: 'clamp(13px, 3vw, 19px)',
-        color,
-        lineHeight: 1,
+        width: 36, height: 36, flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 22,
+        border: `1px solid ${avatar?.color || color}`,
+        background: `${avatar?.color || color}15`,
+        boxShadow: `0 0 8px ${avatar?.color || color}40`
       }}>
-        {name || '---'}
-        {isMe && <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 9, color: 'var(--dim)', marginLeft: 6 }}>[YOU]</span>}
+        {avatar?.emoji || '⚔️'}
       </div>
-      <div style={{
-        fontFamily: "'Share Tech Mono',monospace",
-        fontSize: 11,
-        color: 'var(--dim)',
-        marginTop: 3
-      }}>
-        SCORE: <span style={{ color }}>{score}</span>
+
+      <div>
+        <div style={{
+          fontFamily: "'Black Ops One',cursive",
+          fontSize: 'clamp(11px, 2.5vw, 17px)',
+          color, lineHeight: 1
+        }}>
+          {name || '---'}
+          {isMe && <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 8, color: 'var(--dim)', marginLeft: 5 }}>[YOU]</span>}
+        </div>
+        {avatar && (
+          <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 8, color: avatar.color, marginTop: 2, letterSpacing: 1 }}>
+            {avatar.name}
+          </div>
+        )}
+        <div style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 10, color: 'var(--dim)', marginTop: 2 }}>
+          SCORE: <span style={{ color }}>{score}</span>
+        </div>
       </div>
     </div>
   )

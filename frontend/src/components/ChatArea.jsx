@@ -1,31 +1,72 @@
 import { useEffect, useRef } from 'react'
+import sfx from '../sfx'
 
 const TAG_COLORS = {
-  aura: { color: 'var(--neon-purple)', bg: 'rgba(191,0,255,0.1)', border: 'var(--neon-purple)' },
-  damage: { color: 'var(--neon-red)', bg: 'rgba(255,0,60,0.1)', border: 'var(--neon-red)' },
-  creativity: { color: 'var(--neon-green)', bg: 'rgba(0,255,136,0.1)', border: 'var(--neon-green)' },
-  total: { color: 'var(--neon-yellow)', bg: 'rgba(255,230,0,0.1)', border: 'var(--neon-yellow)' },
+  aura:       { color: 'var(--neon-purple)', bg: 'rgba(191,0,255,0.1)',  border: 'var(--neon-purple)' },
+  damage:     { color: 'var(--neon-red)',    bg: 'rgba(255,0,60,0.1)',   border: 'var(--neon-red)'    },
+  creativity: { color: 'var(--neon-green)',  bg: 'rgba(0,255,136,0.1)', border: 'var(--neon-green)'  },
+  total:      { color: 'var(--neon-yellow)', bg: 'rgba(255,230,0,0.1)', border: 'var(--neon-yellow)' },
 }
 
-function ScoreTag({ label, value, type }) {
+const SCORE_TIPS = {
+  aura:       ['Confidence & delivery', 'How hard you sold it', 'Style points'],
+  damage:     ['Sting of the insult', 'How much it hurt', 'Impact level'],
+  creativity: ['Originality & wordplay', 'How fresh the burn was', 'Creative execution'],
+}
+
+function ScoreTag({ label, value, type, tip }) {
   const c = TAG_COLORS[type] || TAG_COLORS.total
   return (
-    <span style={{
-      fontFamily: "'Share Tech Mono',monospace",
-      fontSize: 9,
-      padding: '1px 5px',
-      color: c.color,
-      background: c.bg,
-      border: `1px solid ${c.border}`,
-      letterSpacing: 1,
-      whiteSpace: 'nowrap'
-    }}>{label} {value}</span>
+    <span
+      title={tip}
+      style={{
+        fontFamily: "'Share Tech Mono',monospace",
+        fontSize: 9, padding: '2px 6px',
+        color: c.color, background: c.bg,
+        border: `1px solid ${c.border}`,
+        letterSpacing: 1, whiteSpace: 'nowrap',
+        cursor: tip ? 'help' : 'default',
+        position: 'relative'
+      }}
+    >
+      {label} {value}
+      {tip && <span style={{ marginLeft: 3, opacity: 0.6 }}>?</span>}
+    </span>
   )
 }
+
+function getScoreBar(value, max = 10, color = 'var(--neon-cyan)') {
+  const pct = (value / max) * 100
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+      <div style={{ width: 60, height: 4, background: 'rgba(255,255,255,0.08)', position: 'relative' }}>
+        <div style={{
+          position: 'absolute', left: 0, top: 0, bottom: 0,
+          width: pct + '%', background: color,
+          transition: 'width 0.5s ease',
+          boxShadow: `0 0 4px ${color}`
+        }} />
+      </div>
+      <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 8, color, opacity: 0.8 }}>{value}/10</span>
+    </div>
+  )
+}
+
+const prevScores = new Set()
 
 function Message({ msg, myRole }) {
   const isSystem = msg.role === 'system'
   const isMe = msg.role === myRole
+
+  // Play sfx when scores arrive (once per message)
+  useEffect(() => {
+    if (msg.scores && !prevScores.has(msg.id)) {
+      prevScores.add(msg.id)
+      sfx.hitByScore(msg.scores.total)
+      if (msg.scores.total >= 20) sfx.crowdCheer()
+      else if (msg.scores.total < 10) sfx.crowdBoo()
+    }
+  }, [msg.scores])
 
   if (isSystem) {
     return (
@@ -35,23 +76,20 @@ function Message({ msg, myRole }) {
           border: '1px solid rgba(255,230,0,0.2)',
           color: 'var(--neon-yellow)',
           fontFamily: "'Share Tech Mono',monospace",
-          fontSize: 10,
-          padding: '5px 12px',
-          letterSpacing: 1,
-          maxWidth: '100%',
-          textAlign: 'center'
+          fontSize: 10, padding: '5px 12px',
+          letterSpacing: 1, maxWidth: '100%', textAlign: 'center'
         }}>{msg.text}</div>
       </div>
     )
   }
 
+  const isP1 = msg.role === 'p1'
+  const accentColor = isP1 ? 'var(--neon-cyan)' : 'var(--neon-red)'
+
   const bubbleStyle = {
-    maxWidth: '75%',
-    padding: '8px 12px',
-    fontSize: 14,
-    fontWeight: 600,
-    lineHeight: 1.35,
-    ...(msg.role === 'p1' ? {
+    maxWidth: '78%', padding: '8px 12px',
+    fontSize: 14, fontWeight: 600, lineHeight: 1.35,
+    ...(isP1 ? {
       background: 'rgba(0,245,255,0.07)',
       borderLeft: '2px solid var(--neon-cyan)',
       clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)'
@@ -64,44 +102,72 @@ function Message({ msg, myRole }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: msg.role === 'p2' ? 'row-reverse' : 'row', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: isP1 ? 'row' : 'row-reverse', gap: 8 }}>
+      {/* Avatar bubble */}
+      <div style={{
+        width: 28, height: 28, flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 18,
+        border: `1px solid ${accentColor}`,
+        background: `${accentColor}12`,
+        alignSelf: 'flex-end'
+      }}>
+        {msg.avatar || (isP1 ? '⚔️' : '🔥')}
+      </div>
+
       <div style={bubbleStyle}>
         <div style={{
-          fontFamily: "'Share Tech Mono',monospace",
-          fontSize: 9,
-          color: msg.role === 'p1' ? 'var(--neon-cyan)' : 'var(--neon-red)',
-          letterSpacing: 1,
-          marginBottom: 3,
-          textAlign: msg.role === 'p2' ? 'right' : 'left'
+          fontFamily: "'Share Tech Mono',monospace", fontSize: 9,
+          color: accentColor, letterSpacing: 1, marginBottom: 3,
+          textAlign: isP1 ? 'left' : 'right'
         }}>{msg.name?.toUpperCase()}</div>
+
         <div>{msg.text}</div>
 
         {msg.scoring && (
           <div style={{
-            fontFamily: "'Share Tech Mono',monospace",
-            fontSize: 9,
-            color: 'var(--dim)',
-            marginTop: 4,
+            fontFamily: "'Share Tech Mono',monospace", fontSize: 9,
+            color: 'var(--dim)', marginTop: 4,
             animation: 'blink 0.8s ease infinite'
-          }}>[ SCORING... ]</div>
+          }}>[ JUDGING... ]</div>
         )}
 
         {msg.scores && (
           <>
-            <div style={{ display: 'flex', gap: 5, marginTop: 5, flexWrap: 'wrap', justifyContent: msg.role === 'p2' ? 'flex-end' : 'flex-start' }}>
-              <ScoreTag label="AURA" value={msg.scores.aura} type="aura" />
-              <ScoreTag label="DMG" value={msg.scores.damage} type="damage" />
-              <ScoreTag label="OG" value={msg.scores.creativity} type="creativity" />
-              <ScoreTag label="+" value={msg.scores.total + 'pts'} type="total" />
+            {/* Mini score bars */}
+            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3, alignItems: isP1 ? 'flex-start' : 'flex-end' }}>
+              {[
+                { key: 'aura',       label: 'AURA',  color: 'var(--neon-purple)', val: msg.scores.aura },
+                { key: 'damage',     label: 'DMG',   color: 'var(--neon-red)',    val: msg.scores.damage },
+                { key: 'creativity', label: 'OG',    color: 'var(--neon-green)',  val: msg.scores.creativity },
+              ].map(({ key, label, color, val }) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5, flexDirection: isP1 ? 'row' : 'row-reverse' }}>
+                  <span style={{
+                    fontFamily: "'Share Tech Mono',monospace", fontSize: 8,
+                    color, letterSpacing: 1, width: 28,
+                    textAlign: isP1 ? 'left' : 'right'
+                  }}>{label}</span>
+                  {getScoreBar(val, 10, color)}
+                </div>
+              ))}
             </div>
+
+            {/* Total + verdict */}
             <div style={{
-              fontFamily: "'Share Tech Mono',monospace",
-              fontSize: 9,
-              color: 'var(--neon-yellow)',
-              marginTop: 3,
-              letterSpacing: 1,
-              textAlign: msg.role === 'p2' ? 'right' : 'left'
-            }}>» {msg.scores.verdict}</div>
+              display: 'flex', alignItems: 'center', gap: 6, marginTop: 5,
+              justifyContent: isP1 ? 'flex-start' : 'flex-end'
+            }}>
+              <span style={{
+                fontFamily: "'Share Tech Mono',monospace", fontSize: 9,
+                color: 'var(--neon-yellow)', border: '1px solid var(--neon-yellow)',
+                background: 'rgba(255,230,0,0.1)', padding: '1px 6px',
+                letterSpacing: 1
+              }}>+{msg.scores.total}pts</span>
+              <span style={{
+                fontFamily: "'Share Tech Mono',monospace", fontSize: 8,
+                color: 'var(--neon-yellow)', letterSpacing: 1
+              }}>» {msg.scores.verdict}</span>
+            </div>
           </>
         )}
       </div>
@@ -118,16 +184,12 @@ export default function ChatArea({ messages, myRole }) {
 
   return (
     <div style={{
-      flex: 1,
-      minHeight: 220,
-      maxHeight: 340,
+      flex: 1, minHeight: 220, maxHeight: 340,
       overflowY: 'auto',
       background: 'var(--panel)',
       border: '1px solid var(--border)',
       padding: 10,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 8
+      display: 'flex', flexDirection: 'column', gap: 8
     }}>
       <style>{`
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
