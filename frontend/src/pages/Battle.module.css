@@ -1,0 +1,84 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+
+.layout {
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.fightersRow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.vsBadge {
+  font-family: 'Black Ops One', cursive;
+  font-size: 22px;
+  color: var(--neon-yellow);
+  text-shadow: 0 0 15px var(--neon-yellow);
+  text-align: center;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.inputWrap { display: flex; flex-direction: column; gap: 2px; }
+
+.inputRow {
+  display: flex;
+  gap: 8px;
+}
+
+.battleInput {
+  flex: 1;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-bottom: 2px solid;
+  color: var(--text);
+  padding: 11px 14px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  outline: none;
+  transition: background 0.2s;
+}
+.battleInput:focus { background: rgba(255,255,255,0.06); }
+.battleInput::placeholder { color: var(--dim); font-weight: 400; }
+.battleInput:disabled { opacity: 0.3; }
+
+.p1Input { border-bottom-color: var(--neon-cyan); }
+.p2Input { border-bottom-color: var(--neon-red); }
+
+.sendBtn {
+  padding: 11px 20px;
+  border: none;
+  font-family: 'Black Ops One', cursive;
+  font-size: 12px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.p1 { background: var(--neon-cyan); color: #000; }
+.p2 { background: var(--neon-red);  color: #fff; }
+.sendBtn:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+.sendBtn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+.charCount {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  text-align: right;
+}

@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+
+:root {
+  --neon-cyan: #00f5ff;
+  --neon-red: #ff003c;
+  --neon-yellow: #ffe600;
+  --neon-green: #00ff88;
+  --neon-purple: #bf00ff;
+  --bg: #050508;
+  --panel: #0a0a12;
+  --border: #1a1a2e;
+  --text: #e0e0ff;
+  --dim: #555577;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Rajdhani', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,245,255,0.012) 2px, rgba(0,245,255,0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+.scanline {
+  position: fixed;
+  top: -100%; left: 0; right: 0;
+  height: 200%;
+  background: linear-gradient(transparent 50%, rgba(0,245,255,0.025) 50%);
+  background-size: 100% 4px;
+  animation: scanlines 8s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes scanlines {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(50%); }
+}
+
+/* Shared utilities */
+.font-logo   { font-family: 'Black Ops One', cursive; }
+.font-mono   { font-family: 'Share Tech Mono', monospace; }
+.font-body   { font-family: 'Rajdhani', sans-serif; }
+
+.neon-cyan   { color: var(--neon-cyan); }
+.neon-red    { color: var(--neon-red); }
+.neon-yellow { color: var(--neon-yellow); }
+.neon-green  { color: var(--neon-green); }
+.neon-purple { color: var(--neon-purple); }
+
+.clip-corner {
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+
+.clip-corner-sm {
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
