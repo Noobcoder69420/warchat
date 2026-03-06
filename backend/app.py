@@ -133,18 +133,59 @@ def on_disconnect():
         online_sids.discard(sid)
     broadcast_online_count()
 
-    room_id = room_manager.find_room_by_sid(sid)
-    if room_id:
-        room = room_manager.get_room(room_id)
-        if room:
-            role = room_manager.get_role_by_sid(room_id, sid)
-            name = room['players'].get(role, {}).get('name', 'A player') if role else 'A player'
-            emit('player_disconnected', {'player': name, 'message': f'{name} disconnected'}, room=room_id)
-        room_manager.remove_player(room_id, sid)
+    result = room_manager.mark_disconnected(sid)
+    if result:
+        room_id, role, name = result
+        # Notify opponent but don't remove yet — give 15s grace period
+        socketio.emit('opp_reconnecting', {
+            'player': name,
+            'message': f'{name} lost connection — waiting for reconnect...',
+            'seconds': 15
+        }, room=room_id)
+
+        # After 15s, if they haven't rejoined, fire the full disconnect
+        def delayed_disconnect():
+            time.sleep(15)
+            room = room_manager.get_room(room_id)
+            if not room: return
+            # Check if they rejoined (their role would have a different sid now)
+            player = room['players'].get(role, {})
+            if player.get('sid') == sid:
+                # Still the old sid = they didn't rejoin
+                room_manager.finalize_disconnect(room_id, role)
+                socketio.emit('player_disconnected', {
+                    'player': name,
+                    'message': f'{name} disconnected'
+                }, room=room_id)
+            # else: they rejoined successfully, do nothing
+
+        threading.Thread(target=delayed_disconnect, daemon=True).start()
 
     with online_lock:
         count = len(online_sids)
     print(f'[-] {sid} ({count} online)')
+
+
+@socketio.on('rejoin_room')
+def on_rejoin_room(data):
+    """Client sends this on reconnect if they were mid-battle."""
+    room_id = data.get('room_id', '').strip().upper()
+    role = data.get('role', '')
+    sid = request.sid
+
+    state = room_manager.try_rejoin(sid, room_id, role)
+    if state:
+        join_room(room_id)
+        with online_lock:
+            online_sids.add(sid)
+        emit('rejoin_success', state)
+        # Tell opponent they're back
+        socketio.emit('opp_reconnected', {
+            'message': f'{state["name"]} reconnected!'
+        }, room=room_id, include_self=False)
+        print(f'[REJOIN] {state["name"]} rejoined {room_id} as {role}')
+    else:
+        emit('rejoin_failed', {'message': 'Could not rejoin — room may have ended.'})
 
 @socketio.on('create_room')
 def on_create_room(data):

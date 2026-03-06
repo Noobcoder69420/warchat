@@ -114,6 +114,23 @@ export default function Battle() {
         </div>
       </div>
 
+      {/* Opponent reconnecting banner */}
+      {state.oppReconnecting && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 140,
+          background: 'rgba(255,230,0,0.12)',
+          border: '1px solid var(--neon-yellow)',
+          padding: '10px 16px',
+          fontFamily: "'Share Tech Mono',monospace",
+          fontSize: 12, color: 'var(--neon-yellow)',
+          textAlign: 'center', letterSpacing: 2,
+          animation: 'blink 1s ease infinite'
+        }}>
+          📶 {state.oppName} LOST CONNECTION — WAITING 15s FOR RECONNECT...
+          <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+        </div>
+      )}
+
       {/* Opponent disconnected overlay */}
       {state.oppDisconnected && !state.matchOver && (
         <div style={{
