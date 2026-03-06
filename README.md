@@ -1,3 +1,12 @@
+# Warchat
+
+Real-time trash talk battle where AI judges the winner.
+
+**Play it here:**  
+https://warchat.vercel.app
+
+---
+
 # ⌨️ KEYBOARD WARRIOR
 
 AI-judged trash talk tournament. Two players, real-time battles, Groq-powered scoring.
