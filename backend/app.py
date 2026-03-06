@@ -187,6 +187,26 @@ def on_rejoin_room(data):
     else:
         emit('rejoin_failed', {'message': 'Could not rejoin — room may have ended.'})
 
+@socketio.on('leave_room')
+def on_leave_room():
+    """Player intentionally left — skip grace period, remove immediately."""
+    sid = request.sid
+    room_id = room_manager.find_room_by_sid(sid)
+    if room_id:
+        room = room_manager.get_room(room_id)
+        if room:
+            role = room_manager.get_role_by_sid(room_id, sid)
+            name = room['players'].get(role, {}).get('name', 'A player') if role else 'A player'
+            # Cancel any pending rejoin grace period
+            room_manager.cancel_rejoin(room_id, role)
+            # Remove immediately and notify opponent
+            room_manager.remove_player(room_id, sid)
+            socketio.emit('player_disconnected', {
+                'player': name,
+                'message': f'{name} left the battle'
+            }, room=room_id)
+    print(f'[LEAVE] {sid} left room {room_id}')
+
 @socketio.on('create_room')
 def on_create_room(data):
     name = data.get('name', 'Fighter').strip()[:20]

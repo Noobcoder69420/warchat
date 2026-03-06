@@ -57,6 +57,13 @@ export default function Battle() {
   }
 
   function handleLeave() {
+    // Tell server we're intentionally leaving (not a reconnectable disconnect)
+    socket.emit('leave_room')
+    // Clear session so reconnect doesn't try to rejoin old room
+    sessionStorage.removeItem('kw_session')
+    // Stop all SFX
+    sfx.unlock()
+    // Full state reset
     dispatch({ type: 'RESET' })
     navigate('/')
   }
@@ -110,6 +117,23 @@ export default function Battle() {
           </div>
           <div className={styles.charCount}>
             <span style={{ color: input.length > 180 ? 'var(--neon-red)' : 'var(--dim)' }}>{input.length}</span>/200
+            <button
+              onClick={() => {
+                if (window.confirm('Forfeit and leave? This counts as a loss.')) handleLeave()
+              }}
+              style={{
+                marginLeft: 'auto',
+                background: 'transparent',
+                border: '1px solid rgba(255,0,60,0.3)',
+                color: 'rgba(255,0,60,0.5)',
+                fontFamily: "'Share Tech Mono',monospace",
+                fontSize: 9, letterSpacing: 1,
+                padding: '2px 8px', cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.target.style.borderColor='var(--neon-red)'; e.target.style.color='var(--neon-red)' }}
+              onMouseLeave={e => { e.target.style.borderColor='rgba(255,0,60,0.3)'; e.target.style.color='rgba(255,0,60,0.5)' }}
+            >✕ FORFEIT</button>
           </div>
         </div>
       </div>

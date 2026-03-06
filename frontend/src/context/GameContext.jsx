@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, useRef } from 'react'
+import { createContext, useContext, useReducer, useEffect } from 'react'
 import socket from '../socket'
 import sfx from '../sfx'
 
@@ -22,11 +22,12 @@ const initialState = {
   matchmaking: false,
   lastHit: null,
   oppDisconnected: false,
-  oppReconnecting: false, // { role, total } for powerbar flash
+  oppReconnecting: false,
 }
 
 function reducer(state, action) {
   switch (action.type) {
+
     case 'SET_CONNECTED':    return { ...state, connected: action.value }
     case 'SET_ONLINE_COUNT': return { ...state, onlineCount: action.count }
     case 'SET_STATUS':       return { ...state, statusMsg: action.msg, statusType: action.stype || '' }
@@ -37,10 +38,12 @@ function reducer(state, action) {
       return { ...state, myName: action.name, myRole: 'p1', roomId: action.room_id, statusMsg: '' }
 
     case 'ROOM_JOINED':
-      return { ...state, myName: action.name, myRole: action.role, roomId: action.room_id, oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull', statusMsg: '' }
+      return { ...state, myName: action.name, myRole: action.role, roomId: action.room_id,
+               oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull', statusMsg: '' }
 
     case 'MATCHED':
-      return { ...state, myRole: action.role, roomId: action.room_id, oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull', matchmaking: false }
+      return { ...state, myRole: action.role, roomId: action.room_id,
+               oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull', matchmaking: false }
 
     case 'OPPONENT_JOINED':
       return { ...state, oppName: action.opponent_name, oppAvatar: action.opponent_avatar || 'skull' }
@@ -53,7 +56,7 @@ function reducer(state, action) {
         timer: 30, p1Score: 0, p2Score: 0,
         p1RoundWins: 0, p2RoundWins: 0,
         messages: [], matchOver: false, matchWinner: '',
-        lastHit: null
+        lastHit: null, oppDisconnected: false, oppReconnecting: false,
       }
 
     case 'COUNTDOWN_DONE':
@@ -68,7 +71,6 @@ function reducer(state, action) {
         messages: [...state.messages, {
           id: action.msg_id, role: action.role,
           name: action.name, text: action.text,
-          // Use avatar sent from server, fallback to local state
           avatar: action.avatar || (action.role === state.myRole ? state.myAvatar : state.oppAvatar),
           scores: null, scoring: true
         }]
@@ -97,7 +99,8 @@ function reducer(state, action) {
         p2RoundWins: action.p2_round_wins,
         lastHit: null,
         messages: [...state.messages, {
-          id: 'sys-' + action.round, role: 'system', name: 'SYSTEM',
+          id: 'sys-r' + action.round + '-' + Date.now(),
+          role: 'system', name: 'SYSTEM',
           text: `⚔️ ROUND ${action.round} — GET READY!`,
           scores: null, scoring: false
         }]
@@ -106,24 +109,8 @@ function reducer(state, action) {
     case 'MATCH_END':
       return { ...state, matchOver: true, matchWinner: action.winner, roundActive: false, screen: 'finished' }
 
-    case 'SYSTEM_MSG': {
-      // Prevent stacking identical consecutive system messages
-      const lastMsg = state.messages[state.messages.length - 1]
-      if (lastMsg && lastMsg.role === 'system' && lastMsg.text === action.text) return state
-      return {
-        ...state,
-        messages: [...state.messages, {
-          id: 'sys-' + Date.now(), role: 'system', name: 'SYSTEM',
-          text: action.text, scores: null, scoring: false
-        }]
-      }
-    }
-
-    case 'RESET':
-      return { ...initialState, connected: state.connected }
-
     case 'OPP_DISCONNECTED':
-      return { ...state, oppDisconnected: true, roundActive: false }
+      return { ...state, oppDisconnected: true, roundActive: false, oppReconnecting: false }
 
     case 'SET_OPP_RECONNECTING':
       return { ...state, oppDisconnected: false, oppReconnecting: true }
@@ -134,7 +121,7 @@ function reducer(state, action) {
     case 'REJOIN_SUCCESS':
       return {
         ...state,
-        screen: action.status === 'battle' ? 'battle' : 'lobby',
+        screen: 'battle',
         roomId: action.room_id,
         myRole: action.role,
         myName: action.name,
@@ -151,10 +138,31 @@ function reducer(state, action) {
         oppDisconnected: false,
         oppReconnecting: false,
         messages: [...state.messages, {
-          id: 'sys-rejoin', role: 'system', name: 'SYSTEM',
+          id: 'sys-rejoin-' + Date.now(), role: 'system', name: 'SYSTEM',
           text: "📶 RECONNECTED — YOU'RE BACK IN THE FIGHT!",
           scores: null, scoring: false
         }]
+      }
+
+    case 'SYSTEM_MSG': {
+      const last = state.messages[state.messages.length - 1]
+      if (last && last.role === 'system' && last.text === action.text) return state
+      return {
+        ...state,
+        messages: [...state.messages, {
+          id: 'sys-' + Date.now() + '-' + Math.random(),
+          role: 'system', name: 'SYSTEM',
+          text: action.text, scores: null, scoring: false
+        }]
+      }
+    }
+
+    case 'RESET':
+      return {
+        ...initialState,
+        connected: state.connected,
+        onlineCount: state.onlineCount,
+        myAvatar: state.myAvatar,
       }
 
     default: return state
@@ -163,69 +171,73 @@ function reducer(state, action) {
 
 export function GameProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
-  const stateRef = useRef(state)
-  stateRef.current = state
 
   useEffect(() => {
     socket.connect()
 
-    // On reconnect, try to rejoin if we were mid-battle
-    socket.on('connect', () => {
+    const onConnect = () => {
       dispatch({ type: 'SET_CONNECTED', value: true })
       const saved = sessionStorage.getItem('kw_session')
       if (saved) {
         try {
           const { roomId, role } = JSON.parse(saved)
-          if (roomId && role) {
-            console.log('[rejoin] Attempting rejoin:', roomId, role)
-            socket.emit('rejoin_room', { room_id: roomId, role })
-          }
-        } catch (e) {}
+          if (roomId && role) socket.emit('rejoin_room', { room_id: roomId, role })
+        } catch (e) { sessionStorage.removeItem('kw_session') }
       }
-    })
+    }
 
+    socket.on('connect',    onConnect)
     socket.on('disconnect', () => dispatch({ type: 'SET_CONNECTED', value: false }))
     socket.on('online_count', d => dispatch({ type: 'SET_ONLINE_COUNT', count: d.count }))
-    socket.on('room_created',       d => { dispatch({ type: 'ROOM_CREATED', ...d }); sessionStorage.setItem('kw_session', JSON.stringify({ roomId: d.room_id, role: 'p1' })) })
-    socket.on('join_error',         d => dispatch({ type: 'SET_STATUS', msg: d.message, stype: 'err' }))
-    socket.on('room_joined',        d => { dispatch({ type: 'ROOM_JOINED', ...d }); sessionStorage.setItem('kw_session', JSON.stringify({ roomId: d.room_id, role: d.role })) })
+
+    socket.on('room_created', d => {
+      sessionStorage.setItem('kw_session', JSON.stringify({ roomId: d.room_id, role: 'p1' }))
+      dispatch({ type: 'ROOM_CREATED', ...d })
+    })
+    socket.on('join_error',   d => dispatch({ type: 'SET_STATUS', msg: d.message, stype: 'err' }))
+    socket.on('room_joined',  d => {
+      sessionStorage.setItem('kw_session', JSON.stringify({ roomId: d.room_id, role: d.role }))
+      dispatch({ type: 'ROOM_JOINED', ...d })
+    })
     socket.on('opponent_joined',    d => dispatch({ type: 'OPPONENT_JOINED', ...d }))
-    socket.on('matched',            d => { dispatch({ type: 'MATCHED', ...d }); sessionStorage.setItem('kw_session', JSON.stringify({ roomId: d.room_id, role: d.role })) })
-    socket.on('matchmaking_waiting',() => dispatch({ type: 'SET_MATCHMAKING', value: true }))
-    socket.on('matchmaking_cancelled',() => dispatch({ type: 'SET_MATCHMAKING', value: false }))
-    socket.on('battle_start',       d => dispatch({ type: 'BATTLE_START', ...d }))
-    socket.on('timer_tick',         d => { dispatch({ type: 'TIMER_TICK', seconds: d.seconds }); if (d.seconds <= 5 && d.seconds > 0) sfx.tick() })
-    socket.on('new_message',        d => { dispatch({ type: 'NEW_MESSAGE', ...d }); sfx.messageSent() })
-    socket.on('score_result',       d => dispatch({ type: 'SCORE_RESULT', ...d }))
-    socket.on('round_end',          d => { dispatch({ type: 'ROUND_END', ...d }); sfx.roundEnd() })
-    socket.on('round_start',        d => dispatch({ type: 'ROUND_START', ...d }))
-    socket.on('match_end',          d => { dispatch({ type: 'MATCH_END', ...d }); sessionStorage.removeItem('kw_session') })
+    socket.on('matched', d => {
+      sessionStorage.setItem('kw_session', JSON.stringify({ roomId: d.room_id, role: d.role }))
+      dispatch({ type: 'MATCHED', ...d })
+    })
+    socket.on('matchmaking_waiting',   () => dispatch({ type: 'SET_MATCHMAKING', value: true }))
+    socket.on('matchmaking_cancelled', () => dispatch({ type: 'SET_MATCHMAKING', value: false }))
+
+    socket.on('battle_start', d => dispatch({ type: 'BATTLE_START', ...d }))
+    socket.on('timer_tick',   d => {
+      dispatch({ type: 'TIMER_TICK', seconds: d.seconds })
+      if (d.seconds <= 5 && d.seconds > 0) sfx.tick()
+    })
+    socket.on('new_message',  d => { dispatch({ type: 'NEW_MESSAGE', ...d }); sfx.messageSent() })
+    socket.on('score_result', d => dispatch({ type: 'SCORE_RESULT', ...d }))
+    socket.on('round_end',    d => { dispatch({ type: 'ROUND_END', ...d }); sfx.roundEnd() })
+    socket.on('round_start',  d => dispatch({ type: 'ROUND_START', ...d }))
+    socket.on('match_end',    d => {
+      sessionStorage.removeItem('kw_session')
+      dispatch({ type: 'MATCH_END', ...d })
+    })
 
     socket.on('player_disconnected', d => {
-      dispatch({ type: 'SYSTEM_MSG', text: `⚠️ ${d.message}` })
       dispatch({ type: 'OPP_DISCONNECTED' })
+      dispatch({ type: 'SYSTEM_MSG', text: `⚠️ ${d.message}` })
     })
-
     socket.on('opp_reconnecting', d => {
+      dispatch({ type: 'SET_OPP_RECONNECTING' })
       dispatch({ type: 'SYSTEM_MSG', text: `📶 ${d.message}` })
-      dispatch({ type: 'SET_OPP_RECONNECTING', seconds: d.seconds })
     })
-
     socket.on('opp_reconnected', d => {
-      dispatch({ type: 'SYSTEM_MSG', text: `✅ ${d.message}` })
       dispatch({ type: 'OPP_RECONNECTED' })
+      dispatch({ type: 'SYSTEM_MSG', text: `✅ ${d.message}` })
     })
-
-    socket.on('rejoin_success', d => {
-      console.log('[rejoin] Success:', d)
-      dispatch({ type: 'REJOIN_SUCCESS', ...d })
-    })
-
-    socket.on('rejoin_failed', () => {
+    socket.on('rejoin_success', d => dispatch({ type: 'REJOIN_SUCCESS', ...d }))
+    socket.on('rejoin_failed',  () => {
       sessionStorage.removeItem('kw_session')
       dispatch({ type: 'RESET' })
     })
-
     socket.on('rematch_requested', () => dispatch({ type: 'SYSTEM_MSG', text: '🔄 OPPONENT WANTS A REMATCH...' }))
 
     return () => socket.removeAllListeners()

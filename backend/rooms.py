@@ -132,6 +132,11 @@ class RoomManager:
             if not room['players']:
                 del self._rooms[room_id]
 
+    def cancel_rejoin(self, room_id, role):
+        """Cancel a pending rejoin entry (player intentionally left)."""
+        with self._lock:
+            self._pending_rejoin.pop(f'{room_id}:{role}', None)
+
     def remove_player(self, room_id, sid):
         with self._lock:
             self._sid_to_room.pop(sid, None)
