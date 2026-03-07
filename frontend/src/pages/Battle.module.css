@@ -46,40 +46,6 @@
   flex-shrink: 0;
 }
 
-/* Quick-fire burn strip */
-.quickFire {
-  display: flex;
-  gap: 5px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  padding: 2px 0;
-}
-.quickFire::-webkit-scrollbar { display: none; }
-
-.quickBtn {
-  flex-shrink: 0;
-  padding: 7px 11px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: var(--dim);
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.12s;
-  /* 44px minimum touch target height via line-height + padding */
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-}
-.quickBtn:active {
-  background: rgba(255,255,255,0.1);
-  border-color: rgba(255,255,255,0.3);
-  color: var(--text);
-  transform: scale(0.97);
-}
 
 .inputRow {
   display: flex;

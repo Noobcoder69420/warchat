@@ -1,6 +1,7 @@
 import os
 import uuid
 import time
+import random
 import threading
 import urllib.request
 from flask import Flask, request
@@ -8,7 +9,7 @@ from flask_socketio import SocketIO, emit, join_room
 from flask_cors import CORS
 from rooms import RoomManager
 from judge import judge_message, get_best_burn
-from ai_agents import AGENT_LIST, generate_ai_response
+from ai_agents import AGENT_LIST, generate_ai_response, get_opening_move
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'kw-dev-secret')
@@ -160,6 +161,8 @@ def end_round(room_id):
                 'round_time': m['round_time'],
             }, room=room_id)
             threading.Thread(target=run_round_timer, args=(room_id, 4), daemon=True).start()
+            if r.get('is_ai_room'):
+                threading.Thread(target=_fire_ai_opening, args=(room_id,), daemon=True).start()
 
         threading.Thread(target=delayed_next_round, daemon=True).start()
 
@@ -341,6 +344,49 @@ def on_leave_matchmaking():
 
 # ─── AI BATTLE ────────────────────────────────────────────────────────────────
 
+def _fire_ai_opening(room_id):
+    """AI fires an unprompted opening line at the start of the round."""
+    import time as _time
+    # Wait for countdown to finish + tiny offset so it feels like AI is "watching"
+    _time.sleep(5.5 + random.random() * 2)
+    room = room_manager.get_room(room_id)
+    if not room or not room.get('round_active'): return
+    # Only fire if nobody has sent a message yet
+    if room_manager.get_history(room_id): return
+
+    agent_id  = room.get('ai_agent_id', 'kairos')
+    ai_role   = room.get('ai_role', 'p2')
+    ai_player = room['players'].get(ai_role, {})
+    ai_name   = ai_player.get('name', 'AI')
+    ai_avatar = ai_player.get('avatar', agent_id)
+
+    from judge import groq_client
+    opening = get_opening_move(agent_id, groq_client=groq_client)
+    if not opening: return
+
+    import uuid as _uuid
+    msg_id = 'ai-open-' + str(_uuid.uuid4())[:8]
+
+    socketio.emit('opponent_typing', {'role': ai_role}, room=room_id)
+    _time.sleep(0.8)
+
+    room = room_manager.get_room(room_id)
+    if not room or not room.get('round_active'): return
+
+    socketio.emit('new_message', {
+        'msg_id': msg_id, 'role': ai_role,
+        'name': ai_name, 'avatar': ai_avatar, 'text': opening
+    }, room=room_id)
+    room_manager.add_to_history(room_id, ai_role, ai_name, opening)
+
+    from judge import judge_message
+    scores = judge_message(opening, history=[], role=ai_role)
+    room_manager.add_score(room_id, ai_role, scores['total'])
+    socketio.emit('score_result', {
+        'msg_id': msg_id, 'role': ai_role, 'scores': scores
+    }, room=room_id)
+
+
 def _fire_ai_response(room_id, player_text):
     """Generate and emit an AI agent response. Called in a background thread."""
     import time as _time
@@ -434,6 +480,8 @@ def on_join_ai_battle(data):
             'max_rounds': m['max_rounds'],
         }, room=room_id)
         threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
+        # AI fires an opening move after countdown finishes (~5s)
+        threading.Thread(target=_fire_ai_opening, args=(room_id,), daemon=True).start()
 
     threading.Thread(target=start_ai_battle, daemon=True).start()
 
@@ -499,6 +547,7 @@ def on_rematch_request():
             'round_time': m['round_time'], 'rounds_to_win': m['rounds_to_win'], 'max_rounds': m['max_rounds'],
         }, room=room_id)
         threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
+        threading.Thread(target=_fire_ai_opening, args=(room_id,), daemon=True).start()
         return
 
     ready = room_manager.request_rematch(room_id, request.sid)

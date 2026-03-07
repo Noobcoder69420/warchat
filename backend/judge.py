@@ -27,7 +27,7 @@ if _groq_key:
 else:
     print('[JUDGE] No GROQ_API_KEY — falling back to heuristic')
 
-# ─── VERDICTS (English fallback pool) ────────────────────────────────────────
+# ─── HEURISTIC VERDICT POOLS (fallback only) ──────────────────────────────────
 
 VERDICTS = {
     'legendary': ['ABSOLUTE DESTRUCTION ACHIEVED','FATALITY — FLAWLESS VICTORY','KEYBOARD WARRIOR UNLOCKED','LEGENDARY STATUS CONFIRMED','THE INTERNET BOWS DOWN','HISTORIC DAMAGE LOGGED'],
@@ -41,8 +41,7 @@ VERDICTS = {
 
 def pick(tier): return random.choice(VERDICTS[tier])
 
-# ─── SELF-DEGRADING HEURISTIC ─────────────────────────────────────────────────
-# Catches obvious cases BEFORE Groq so the model never sees them
+# ─── SELF-DEGRADING DETECTION ─────────────────────────────────────────────────
 
 SELF_PATTERNS = [
     r"\bi('m| am)\s+(losing|lost|done|finished|gay|bad|trash|terrible|awful|stupid|dumb|weak|pathetic|worthless|useless|a cuck|a loser|nothing)",
@@ -55,14 +54,12 @@ SELF_PATTERNS = [
     r"\bmy\s+(fault|bad|mistake|loss)\b",
     r"\bi\s+should\s+(give up|stop|quit|leave)",
     r"\bkill me\b",
-    # Sexual self-submission
     r"\b(fuck|use|rape|bang|breed)\s+(my|me)\b",
     r"\bcome\s+(fuck|use|do|take)\s+(my|me)\b",
     r"\bi('?m| am)\s+a?\s*(cuck|simp|slave|bottom|sub|toy|doormat)",
     r"\bi('?m| am)\s+gay\b",
     r"\bme\s+gay\s+hu\b", r"\bmain\s+gay\s+hu\b", r"\bmai\s+gay\s+hu\b",
     r"\bmera\s+gaand\b", r"\buse\s+me\b",
-    # Hindi surrender (Roman)
     r"\bmain\s+haar\s+gaya\b", r"\bmain\s+haar\s+gayi\b",
     r"\btu\s+(jeet|jeeta|jiti)\b", r"\btune\s+jeeta?\b",
     r"\btu\s+better\s+hai\b", r"\btum\s+better\s+ho\b",
@@ -95,7 +92,7 @@ LONE_BUZZWORDS = {
     'clapped','rekt','ratio','mid','cope','seethe','mald','l','w','lol','lmao',
     'gg','ez','rip','bozo','npc','cringe','based','ok','k','cooked',
     'washed','diffed','bodied','clown','bro','skill issue','loser','noob','bot',
-    'trash','bad','dumb','cope','bruh','dawg','fam','nah',
+    'trash','bad','dumb','bruh','dawg','fam','nah',
 }
 
 def is_gibberish(text):
@@ -134,7 +131,7 @@ def is_repeat_spam(text, history, role):
     if not history: return False
     normalized = text.lower().strip()
     same = [h for h in history if h['role'] == role and h['text'].lower().strip() == normalized]
-    return len(same) >= 2  # 3rd identical send = 0 pts
+    return len(same) >= 2
 
 # ─── RESULT HELPERS ───────────────────────────────────────────────────────────
 
@@ -152,15 +149,15 @@ def buzzword_result():
 
 def build_context_string(history):
     if not history:
-        return "NONE — this is the opening move of the round."
-    lines = [f"  [{h['name']}]: {h['text']}" for h in history[-4:]]
+        return "NONE — opening move of the round."
+    lines = [f"  [{h['name']}]: {h['text']}" for h in history[-6:]]
     return "\n".join(lines)
 
-# ─── LANGUAGE DETECTION (Devanagari + Roman Hindi keywords) ──────────────────
+# ─── LANGUAGE DETECTION ───────────────────────────────────────────────────────
 
 ROMAN_HINDI_KEYWORDS = {
-    'teri','tere','tera','meri','mera','mere','tujhe','tujhse','aura',
-    'bhai','yaar','bro','sala','saala','kya','hai','nahi','hoga','kar',
+    'teri','tere','tera','meri','mera','mere','tujhe','tujhse',
+    'bhai','yaar','sala','saala','kya','hai','nahi','hoga','kar',
     'diya','gaya','raha','liya','wala','wali','apna','apni','unka',
     'aukat','izzat','gaand','maa','baap','behen','kutte','harami',
     'bakwaas','chutiya','madarchod','behenchod','randi','kamina','bhadwa',
@@ -169,57 +166,71 @@ ROMAN_HINDI_KEYWORDS = {
 
 def detect_language(text):
     lower = text.lower()
-    devanagari = sum(1 for c in text if '\u0900' <= c <= '\u097F')
+    devanagari   = sum(1 for c in text if '\u0900' <= c <= '\u097F')
     arabic_script = sum(1 for c in text if '\u0600' <= c <= '\u06FF')
-    total_alpha = max(len([c for c in text if c.isalpha()]), 1)
-    if devanagari / total_alpha > 0.15: return 'hindi'
+    total_alpha  = max(len([c for c in text if c.isalpha()]), 1)
+    if devanagari  / total_alpha > 0.15: return 'hindi'
     if arabic_script / total_alpha > 0.15: return 'arabic'
-    # Roman Hindi detection
     words = set(re.findall(r'\b\w+\b', lower))
-    hindi_hits = len(words & ROMAN_HINDI_KEYWORDS)
-    if hindi_hits >= 1: return 'hindi'
+    if len(words & ROMAN_HINDI_KEYWORDS) >= 1: return 'hindi'
     return 'english'
 
 # ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
-# Single focused job: score attacks, detect self-insults, reply in same language
 
-SYSTEM_PROMPT = """You are the judge in KEYBOARD WARRIOR — an AI-judged trash talk battle game.
+SYSTEM_PROMPT = """You are the judge in KEYBOARD WARRIOR — a real-time AI-judged trash talk battle.
 
-TASK: Score the CURRENT MESSAGE sent by one player attacking their opponent.
+YOUR JOB: Score the CURRENT MESSAGE and write a verdict that fits the language and energy of the battle.
 
-━━━ ABSOLUTE RULE #1 — SELF-INSULT = ZERO ━━━
-If the sender is humiliating or degrading THEMSELVES (not the opponent), return zeros immediately.
-Examples across languages:
-- English: "I'm a cuck", "come fuck me", "I give up", "I'm losing", "you're better"
-- Hindi: "main haar gaya", "mera gaand", "me gay hu", "tu jeet gaya"
-- Any sexual self-offering, any surrender, any self-deprecation
-ZERO SCORE: {"aura":0,"damage":0,"creativity":0,"total":0,"verdict":"OWN GOAL DETECTED"}
+━━━ STEP 1 — READ HISTORY FIRST ━━━
+Before scoring anything, read the opponent's last message in HISTORY.
+Ask yourself: does the CURRENT MESSAGE respond to, flip, or weaponize something from that last message?
+This is the most important question you will answer.
 
-━━━ ABSOLUTE RULE #2 — SCORE ATTACKS FAIRLY ━━━
-aura (1-10): confidence and swagger of the delivery
-damage (1-10): how badly this would sting the opponent in real life
-creativity (1-10): originality, wordplay, structure — not something heard before
+━━━ STEP 2 — SELF-INSULT CHECK ━━━
+If the sender is degrading THEMSELVES (not the opponent) — surrender, self-deprecation, sexual self-offering — return zeros.
+English: "I give up", "you're better", "I'm trash"
+Hindi: "main haar gaya", "tu jeet gaya", "tu better hai"
+ZERO: {"aura":0,"damage":0,"creativity":0,"total":0,"verdict":"OWN GOAL DETECTED"}
 
-SCALE (be generous with good burns, harsh with lazy ones):
-- "you suck" / "tu bura hai" → 7-9 total
-- metaphor/simile burn → 12-17 total
-- personal creative roast → 18-23 total
-- multi-angle elaborate roast → 24-28 total
-- perfect contextual counter-burn → up to 30 total
+━━━ STEP 3 — SCORE THE MESSAGE ━━━
+Three dimensions, each 1–10:
 
-CONTEXT RULE: If the CURRENT MESSAGE is a direct clever comeback to something in HISTORY, add 2 to all scores. The message "turned their words against them" deserves the highest creativity score.
+aura (1–10): confidence and delivery — how hard did they sell it
+damage (1–10): how badly this stings the opponent in real life
+creativity (1–10):
+  REWARD: turning opponent words against them, clever metaphors, unexpected comparisons, specific personal details
+  DO NOT REWARD: longer sentences alone, profanity alone, repeated insults, generic phrases
 
-━━━ VERDICT LANGUAGE RULE ━━━
-Write the verdict in THE SAME LANGUAGE as the current message.
-- Hindi message → Hindi verdict (Roman or Devanagari): e.g. "EKDUM KHATAM KAR DIYA", "BHAI NE MAAR DAALA", "AUKAT DIKHA DI AAKHIR"
-- Arabic message → Arabic verdict
-- English message → English verdict
-Verdict must be 4-6 words, ALL CAPS, savage and hype.
+━━━ SCORING SCALE ━━━
+Generic one-liner ("you suck", "tu bura hai") → total 3–8
+Basic structured insult → total 9–14
+Creative roast with specific imagery → total 15–20
+Strong contextual comeback → total 21–26
+Perfect reversal — flips opponent's own words against them → total 27–30
 
-━━━ OUTPUT FORMAT ━━━
-JSON only. No markdown. No explanation.
+━━━ CONTEXT RULE ━━━
+If CURRENT MESSAGE directly references, mocks, or flips something from HISTORY:
+  → Add +2 to creativity AND +2 to damage
+  → These can push scores above 10 only via this bonus (cap each at 10 after bonus)
+A message that weaponizes the opponent's previous insult deserves the highest creativity.
+
+━━━ IRRELEVANCE PENALTY ━━━
+If CURRENT MESSAGE has no connection to the opponent's last message AND history exists:
+  → creativity must not exceed 5
+  → total must not exceed 12
+Generic insults sent into the void are boring — punish them.
+
+━━━ VERDICT RULE ━━━
+Write the verdict in THE SAME LANGUAGE as the CURRENT MESSAGE:
+- Hindi (Roman or Devanagari): "EKDUM KHATAM KAR DIYA" / "BHAI NE MAAR DAALA" / "AUKAT DIKHA DI AAKHIR" / "TERE WORDS TUJHPE GIRE"
+- Arabic: match the language
+- English: match the energy of the score
+Verdict: 4–6 words, ALL CAPS, savage and hype. Make it feel earned.
+
+━━━ OUTPUT ━━━
+JSON only. No markdown. No explanation. No reasoning in output.
 {"aura":N,"damage":N,"creativity":N,"total":N,"verdict":"TEXT"}
-total MUST equal aura+damage+creativity."""
+total MUST equal aura+damage+creativity exactly."""
 
 # ─── GROQ JUDGE ───────────────────────────────────────────────────────────────
 
@@ -229,15 +240,25 @@ def judge_with_groq(text, history=None, role=None):
     lang = detect_language(text)
     context_str = build_context_string(history)
 
-    user_prompt = f"""ROUND HISTORY:
+    # Pull out opponent's last message explicitly for the model to focus on
+    opp_last = ''
+    if history:
+        for h in reversed(history):
+            if h.get('role') != role:
+                opp_last = h['text']
+                break
+
+    user_prompt = f"""ROUND HISTORY (last {min(len(history),6)} messages):
 {context_str}
+
+OPPONENT'S LAST MESSAGE: "{opp_last if opp_last else 'none yet'}"
 
 CURRENT MESSAGE (language: {lang}):
 "{text}"
 
-Score it."""
+Does this message respond to or flip the opponent's last message? Score it."""
 
-    for attempt in range(2):  # retry once on rate limit
+    for attempt in range(2):
         try:
             resp = groq_client.chat.completions.create(
                 model='llama-3.3-70b-versatile',
@@ -245,30 +266,28 @@ Score it."""
                     {'role': 'system', 'content': SYSTEM_PROMPT},
                     {'role': 'user',   'content': user_prompt},
                 ],
-                max_tokens=100,
-                temperature=0.1,
+                max_tokens=120,
+                temperature=0.15,
             )
             raw = re.sub(r'```json|```', '', resp.choices[0].message.content.strip()).strip()
-            match = re.search(r'\{.*\}', raw, re.DOTALL)
-            if not match:
-                raise ValueError(f'No JSON in response: {raw}')
-            s = json.loads(match.group())
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if not m:
+                raise ValueError(f'No JSON: {raw}')
+            s = json.loads(m.group())
             aura       = max(0, min(int(s.get('aura',       0)), 10))
             damage     = max(0, min(int(s.get('damage',     0)), 10))
             creativity = max(0, min(int(s.get('creativity', 0)), 10))
             total      = aura + damage + creativity
-            verdict    = str(s.get('verdict', 'SHOT FIRED')).upper()[:50]
+            verdict    = str(s.get('verdict', 'SHOT FIRED')).upper()[:60]
 
-            # Callback verdict boost for high-scoring contextual replies
-            if total >= 24 and len(history) >= 2:
-                if random.random() > 0.5: verdict = pick('callback')
-
-            print(f'[GROQ:{lang}] "{text[:30]}" → {total}pts | {verdict}')
+            # Never override Groq's verdict — it already follows the language rule
+            print(f'[GROQ:{lang}] "{text[:35]}" → {total}pts | {verdict}')
             return {'aura': aura, 'damage': damage, 'creativity': creativity, 'total': total, 'verdict': verdict}
+
         except Exception as e:
-            err_str = str(e).lower()
-            if ('rate' in err_str or '429' in err_str) and attempt == 0:
-                print(f'[GROQ RATE LIMIT] retrying in 2s...')
+            err = str(e).lower()
+            if ('rate' in err or '429' in err) and attempt == 0:
+                print('[GROQ RATE LIMIT] retrying in 2s...')
                 import time as _t; _t.sleep(2)
                 continue
             print(f'[GROQ ERROR] {e}')
@@ -371,7 +390,7 @@ def judge_message(text, history=None, role=None):
         return judge_with_groq(text, history=history, role=role)
     return heuristic_judge(text, history=history)
 
-# ─── BEST BURN OF THE ROUND ───────────────────────────────────────────────────
+# ─── BEST BURN ────────────────────────────────────────────────────────────────
 
 BEST_BURN_PROMPT = """You are the KEYBOARD WARRIOR commentator. A trash talk round just ended.
 
@@ -387,13 +406,9 @@ Respond ONLY with valid JSON:
 {"name":"sender name","text":"the burn text","reason":"YOUR SHORT SAVAGE REASON"}"""
 
 def get_best_burn(full_history, scores_by_msg=None):
-    """Pick the best burn from a round's full message history."""
-    if not GROQ_AVAILABLE or not groq_client:
-        return None
-    # Need at least 2 real messages
+    if not GROQ_AVAILABLE or not groq_client: return None
     real = [h for h in full_history if len(h['text'].strip()) > 5]
-    if len(real) < 2:
-        return None
+    if len(real) < 2: return None
     try:
         lines = "\n".join([f"[{h['name']}]: {h['text']}" for h in real])
         resp = groq_client.chat.completions.create(
@@ -406,9 +421,9 @@ def get_best_burn(full_history, scores_by_msg=None):
             temperature=0.3,
         )
         raw = re.sub(r'```json|```', '', resp.choices[0].message.content.strip()).strip()
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if not match: return None
-        result = json.loads(match.group())
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not m: return None
+        result = json.loads(m.group())
         if not result.get('text') or not result.get('reason'): return None
         print(f'[BEST BURN] {result["name"]}: "{result["text"][:30]}" — {result["reason"][:40]}')
         return result

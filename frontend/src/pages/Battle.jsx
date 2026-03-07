@@ -14,22 +14,6 @@ import CrowdReactions from '../components/CrowdReactions'
 import { getAvatar } from '../avatars'
 import styles from './Battle.module.css'
 
-// ── Quick-fire burns per role/avatar (tab to send instantly) ─────────────────
-const QUICK_BURNS = [
-  "you type like you're using your elbows",
-  "autocorrect is carrying you rn",
-  "my grandma hits harder than this",
-  "bro actually thought that was good 💀",
-  "is that your best? seriously?",
-  "skill issue detected",
-  "you're losing to yourself at this point",
-  "i've seen better insults from a fortune cookie",
-  "ratio incoming 📉",
-  "go touch some grass before you embarrass yourself more",
-  "you really queued up for THIS?",
-  "the audacity with zero talent is crazy",
-]
-
 export default function Battle() {
   const { state, dispatch } = useGame()
   const navigate = useNavigate()
@@ -37,25 +21,6 @@ export default function Battle() {
   const [shake, setShake] = useState(false)
   const [bgOn, setBgOn] = useState(() => localStorage.getItem('kw_bg') !== 'off')
   const [oppTyping, setOppTyping] = useState(false)
-  const [quickBurns] = useState(() => {
-    // Shuffle and pick 6 for the strip
-    const arr = [...QUICK_BURNS].sort(() => Math.random() - 0.5)
-    return arr.slice(0, 6)
-  })
-  const inputRef = useRef(null)
-  const typingTimeout = useRef(null)
-  const typingEmitTimeout = useRef(null)
-
-  const p1Name = state.myRole === 'p1' ? state.myName : state.oppName
-  const p2Name = state.myRole === 'p2' ? state.myName : state.oppName
-  const myAv   = getAvatar(state.myAvatar)
-  const oppAv  = getAvatar(state.oppAvatar || 'rage')
-  const p1Av   = state.myRole === 'p1' ? myAv : oppAv
-  const p2Av   = state.myRole === 'p2' ? myAv : oppAv
-
-  useEffect(() => {
-    if (state.screen === 'lobby') navigate('/')
-  }, [state.screen])
 
   useEffect(() => {
     if (state.roundActive && inputRef.current) inputRef.current.focus()
@@ -174,21 +139,6 @@ export default function Battle() {
 
         {/* Input zone */}
         <div className={styles.inputWrap}>
-
-          {/* Quick-fire burns — scrollable horizontal strip */}
-          {state.roundActive && (
-            <div className={styles.quickFire}>
-              {quickBurns.map((burn, i) => (
-                <button
-                  key={i}
-                  className={styles.quickBtn}
-                  onPointerDown={e => { e.preventDefault(); sendMessage(burn) }}
-                >
-                  {burn}
-                </button>
-              ))}
-            </div>
-          )}
 
           <div className={styles.inputRow}>
             <input
