@@ -64,6 +64,8 @@ SELF_PATTERNS = [
     r"\btu\s+(jeet|jeeta|jiti)\b", r"\btune\s+jeeta?\b",
     r"\btu\s+better\s+hai\b", r"\btum\s+better\s+ho\b",
 ]
+# Compiled once at import — avoids re-parsing on every message
+_RE_SELF = re.compile('|'.join(SELF_PATTERNS), re.IGNORECASE)
 
 SELF_PHRASES = [
     "i'm gay","im gay","i am gay","i'm bad","i'm trash","i'm losing",
@@ -82,9 +84,7 @@ def is_self_degrading(text):
     lower = text.lower().strip()
     for phrase in SELF_PHRASES:
         if phrase in lower: return True
-    for pattern in SELF_PATTERNS:
-        if re.search(pattern, lower): return True
-    return False
+    return bool(_RE_SELF.search(lower))
 
 # ─── SPAM / GIBBERISH ─────────────────────────────────────────────────────────
 
@@ -312,6 +312,9 @@ STRUCTURE_PATTERNS = [
     r'\bthe\s+fact\s+that\s+you\b', r'\bhow\s+does\s+it\s+feel\b',
     r'\byou\s+type\s+like\b', r'\bnot\s+even\s+your\b',
 ]
+_RE_STRUCTURE  = re.compile('|'.join(STRUCTURE_PATTERNS), re.IGNORECASE)
+_RE_SIMILE     = re.compile(r'\blike\s+a\b|\bas\s+\w+\s+as\b', re.IGNORECASE)
+_RE_SIMILE_EXT = re.compile(r'\blike\s+a\b|\bas\s+\w+\s+as\b|\breminds?\s+me\b', re.IGNORECASE)
 
 AURA_OPENERS = [
     "let me be honest","not gonna lie","honestly though","the truth is",
@@ -328,12 +331,11 @@ def heuristic_judge(text, history=None):
     damage = 1
     for phrase in TARGET_PHRASES:
         if phrase in lower: damage += 3; break
-    for pat in STRUCTURE_PATTERNS:
-        if re.search(pat, lower): damage += 2; break
+    if _RE_STRUCTURE.search(lower): damage += 2
     if word_count >= 8:  damage += 1
     if word_count >= 15: damage += 1
     if word_count >= 25: damage += 1
-    if re.search(r'\blike\s+a\b|\bas\s+\w+\s+as\b', lower): damage += 2
+    if _RE_SIMILE.search(lower): damage += 2
     damage = min(damage, 10)
 
     aura = 2
@@ -355,9 +357,8 @@ def heuristic_judge(text, history=None):
     elif unique_ratio > 0.6 and word_count > 3:  creativity += 1
     if word_count >= 20: creativity += 2
     elif word_count >= 12: creativity += 1
-    for pat in STRUCTURE_PATTERNS:
-        if re.search(pat, lower): creativity += 2; break
-    if re.search(r'\blike\s+a\b|\bas\s+\w+\s+as\b|\breminds?\s+me\b', lower): creativity += 2
+    if _RE_STRUCTURE.search(lower):  creativity += 2
+    if _RE_SIMILE_EXT.search(lower): creativity += 2
     creativity = min(creativity, 10)
 
     total = aura + damage + creativity

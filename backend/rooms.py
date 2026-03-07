@@ -1,8 +1,14 @@
 import threading
 import random
+import time
 from datetime import datetime, timedelta
 
 AGENT_NAMES = {'kairos': 'KAIROS', 'kira': 'KIRA', 'jinx': 'JINX'}
+
+# Room age limits
+_ROOM_MAX_AGE_HOURS   = 2      # delete any room older than 2 hours regardless
+_ROOM_IDLE_MINUTES    = 10     # delete finished/waiting rooms idle for 10 min
+_REAPER_INTERVAL_SECS = 300    # reaper runs every 5 minutes
 
 
 class RoomManager:
@@ -12,6 +18,64 @@ class RoomManager:
         self._matchmaking_queue = []
         self._pending_rejoin = {}
         self._lock = threading.Lock()
+        # Start background reaper thread
+        t = threading.Thread(target=self._reaper, daemon=True)
+        t.start()
+
+    def _reaper(self):
+        """Periodically delete ghost rooms to prevent memory leaks."""
+        while True:
+            time.sleep(_REAPER_INTERVAL_SECS)
+            try:
+                self._reap()
+            except Exception as e:
+                print(f'[REAPER] error: {e}')
+
+    def _reap(self):
+        now = datetime.utcnow()
+        max_age   = timedelta(hours=_ROOM_MAX_AGE_HOURS)
+        idle_age  = timedelta(minutes=_ROOM_IDLE_MINUTES)
+        to_delete = []
+
+        with self._lock:
+            for room_id, room in self._rooms.items():
+                age = now - room.get('created_at', now)
+                status = room.get('status', 'waiting')
+
+                # Always delete rooms older than max age
+                if age > max_age:
+                    to_delete.append(room_id)
+                    continue
+
+                # Delete finished or waiting rooms that have been idle
+                if status in ('finished', 'waiting') and age > idle_age:
+                    to_delete.append(room_id)
+                    continue
+
+                # Delete active rooms where all real players are gone
+                players = room.get('players', {})
+                real_sids = [
+                    p['sid'] for p in players.values()
+                    if p.get('sid') and p['sid'] != 'AI'
+                ]
+                if not real_sids and age > idle_age:
+                    to_delete.append(room_id)
+
+            for room_id in to_delete:
+                room = self._rooms.pop(room_id, None)
+                if room:
+                    # Clean up sid mappings for any players in this room
+                    for p in room.get('players', {}).values():
+                        sid = p.get('sid')
+                        if sid and sid != 'AI':
+                            self._sid_to_room.pop(sid, None)
+                # Clean up any pending rejoins for this room
+                keys = [k for k in self._pending_rejoin if k.startswith(room_id + ':')]
+                for k in keys:
+                    del self._pending_rejoin[k]
+
+        if to_delete:
+            print(f'[REAPER] culled {len(to_delete)} ghost room(s): {to_delete}')
 
     def create_room(self, sid, name, avatar='rage', mode='standard'):
         room_id = self._generate_room_id()
