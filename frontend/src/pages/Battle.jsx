@@ -103,6 +103,11 @@ export default function Battle() {
 
   const lastScore = state.lastHit ? { total: state.lastHit.total } : null
 
+  const p1Name = state.myRole === 'p1' ? state.myName : state.oppName
+  const p2Name = state.myRole === 'p2' ? state.myName : state.oppName
+  const p1Av   = state.myRole === 'p1' ? state.myAvatar : state.oppAvatar
+  const p2Av   = state.myRole === 'p2' ? state.myAvatar : state.oppAvatar
+
   const shakeStyle = shake ? {
     animation: shake === 3 ? 'shakeWin 0.8s ease' : shake === 2 ? 'shakeHeavy 0.4s ease' : 'shakeLight 0.3s ease'
   } : {}
