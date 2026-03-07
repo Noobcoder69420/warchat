@@ -15,17 +15,18 @@ export default function Countdown({ onDone, round }) {
     setPhase('number')
 
     sfx.unlock()
-    sfx.countdownBeep(3)
 
     function addTimer(fn, ms) {
       const t = setTimeout(() => {
-        if (cancelledRef.current) return  // don't fire if unmounted
+        if (cancelledRef.current) return
         fn()
       }, ms)
       timersRef.current.push(t)
       return t
     }
 
+    // All sfx through addTimer — cancelledRef guards every sound
+    addTimer(() => { setCount(3); sfx.countdownBeep(3) }, 0)
     addTimer(() => { setCount(2); sfx.countdownBeep(2) }, 1000)
     addTimer(() => { setCount(1); sfx.countdownBeep(1) }, 2000)
     addTimer(() => { setPhase('fight'); sfx.fight() }, 3000)
