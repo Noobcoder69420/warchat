@@ -2,6 +2,14 @@ import random
 import re
 import time
 
+def _groq_call(fn):
+    """Delegate to judge's shared rate limiter."""
+    try:
+        from judge import _groq_call as _jgc
+        return _jgc(fn)
+    except Exception:
+        return fn()
+
 # ─── AGENT DEFINITIONS ────────────────────────────────────────────────────────
 
 AGENTS = {
@@ -155,8 +163,8 @@ def get_opening_move(agent_id, groq_client=None):
     agent = AGENTS.get(agent_id)
     if not agent: return random.choice(FALLBACKS.get(agent_id, FALLBACKS['jinx']))
 
-    # 40% chance use a hardcoded opener (fast, no API call)
-    if not groq_client or random.random() < 0.4:
+    # Always use hardcoded openers for opening move — saves RPM for actual battle
+    if not groq_client or random.random() < 0.8:
         return random.choice(agent['opening_lines'])
 
     system_prompt = f"""{agent['personality']}
@@ -166,7 +174,7 @@ Fire an opening provocation. Set the tone. Make them feel the pressure immediate
 ONE LINE. No quotes around it. No prefix. Max 150 characters."""
 
     try:
-        resp = groq_client.chat.completions.create(
+        resp = _groq_call(lambda: groq_client.chat.completions.create(
             model='llama-3.3-70b-versatile',
             messages=[
                 {'role': 'system', 'content': system_prompt},
@@ -174,7 +182,7 @@ ONE LINE. No quotes around it. No prefix. Max 150 characters."""
             ],
             max_tokens=80,
             temperature=0.9,
-        )
+        ))
         text = resp.choices[0].message.content.strip().strip('"').strip("'")
         text = re.sub(r'^(KAIROS|KIRA|JINX)\s*[:\-]\s*', '', text, flags=re.IGNORECASE).strip()
         text = text.split('\n')[0].strip()
@@ -225,7 +233,7 @@ Your comeback as {agent['name']} (one line, no quotes):"""
 
     for attempt in range(2):
         try:
-            resp = groq_client.chat.completions.create(
+            resp = _groq_call(lambda: groq_client.chat.completions.create(
                 model='llama-3.3-70b-versatile',
                 messages=[
                     {'role': 'system', 'content': system_prompt},
@@ -233,7 +241,7 @@ Your comeback as {agent['name']} (one line, no quotes):"""
                 ],
                 max_tokens=120,
                 temperature=0.75,
-            )
+            ))
             text = resp.choices[0].message.content.strip()
             text = text.strip('"').strip("'")
             text = re.sub(r'^(KAIROS|KIRA|JINX)\s*[:\-]\s*', '', text, flags=re.IGNORECASE).strip()

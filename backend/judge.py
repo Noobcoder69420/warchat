@@ -6,6 +6,27 @@ import re
 groq_client = None
 GROQ_AVAILABLE = False
 
+# ─── RATE LIMITER ─────────────────────────────────────────────────────────────
+# Serialises all Groq calls to avoid RPM bursts on free tier (30 req/min)
+import threading as _threading
+import time as _time
+
+_groq_lock    = _threading.Lock()
+_last_call_ts = 0.0
+_MIN_GAP_SEC  = 2.2   # ~27 req/min max — stays safely under 30 RPM limit
+
+def _groq_call(fn):
+    """Wrap any groq API call with rate limiting."""
+    global _last_call_ts
+    with _groq_lock:
+        now = _time.time()
+        wait = _MIN_GAP_SEC - (now - _last_call_ts)
+        if wait > 0:
+            _time.sleep(wait)
+        result = fn()
+        _last_call_ts = _time.time()
+        return result
+
 _groq_key = os.environ.get('GROQ_API_KEY', '').strip()
 print(f'[JUDGE] GROQ_API_KEY present: {bool(_groq_key)}, length: {len(_groq_key)}')
 
@@ -13,11 +34,11 @@ if _groq_key:
     try:
         from groq import Groq
         groq_client = Groq(api_key=_groq_key)
-        _test = groq_client.chat.completions.create(
+        _test = _groq_call(lambda: groq_client.chat.completions.create(
             model='llama-3.3-70b-versatile',
             messages=[{'role': 'user', 'content': 'say ok'}],
             max_tokens=5,
-        )
+        ))
         GROQ_AVAILABLE = True
         print('[JUDGE] Groq client verified and working')
     except Exception as e:
@@ -260,7 +281,7 @@ Does this message respond to or flip the opponent's last message? Score it."""
 
     for attempt in range(2):
         try:
-            resp = groq_client.chat.completions.create(
+            resp = _groq_call(lambda: groq_client.chat.completions.create(
                 model='llama-3.3-70b-versatile',
                 messages=[
                     {'role': 'system', 'content': SYSTEM_PROMPT},
@@ -268,7 +289,7 @@ Does this message respond to or flip the opponent's last message? Score it."""
                 ],
                 max_tokens=120,
                 temperature=0.15,
-            )
+            ))
             raw = re.sub(r'```json|```', '', resp.choices[0].message.content.strip()).strip()
             m = re.search(r'\{.*\}', raw, re.DOTALL)
             if not m:
@@ -328,37 +349,49 @@ def heuristic_judge(text, history=None):
     word_count = len(words)
     unique_ratio = len(set(words)) / max(word_count, 1)
 
-    damage = 1
+    # ── DAMAGE ──────────────────────────────────────────────
+    damage = 2  # base raised from 1→2
     for phrase in TARGET_PHRASES:
-        if phrase in lower: damage += 3; break
-    if _RE_STRUCTURE.search(lower): damage += 2
-    if word_count >= 8:  damage += 1
-    if word_count >= 15: damage += 1
-    if word_count >= 25: damage += 1
-    if _RE_SIMILE.search(lower): damage += 2
+        if phrase in lower: damage += 4; break  # raised 3→4
+    if _RE_STRUCTURE.search(lower): damage += 3   # raised 2→3
+    if word_count >= 6:  damage += 1   # lowered threshold 8→6
+    if word_count >= 12: damage += 1   # lowered 15→12
+    if word_count >= 20: damage += 2   # new: big bonus for long burns
+    if _RE_SIMILE.search(lower): damage += 3      # raised 2→3
+    # specific personal attack patterns
+    import re as _re
+    if _re.search(r'your\s+\w+\s+(is|are|was|looks?|sounds?|smells?|acts?)', lower): damage += 2
+    if _re.search(r'imagine\s+being', lower): damage += 2
+    if _re.search(r'how\s+(does\s+it\s+feel|dare\s+you)', lower): damage += 2
     damage = min(damage, 10)
 
-    aura = 2
+    # ── AURA ────────────────────────────────────────────────
+    aura = 3  # base raised from 2→3
     caps_words = sum(1 for w in text.split() if w.isupper() and len(w) > 2)
-    if caps_words >= 4: aura += 3
-    elif caps_words >= 2: aura += 2
-    elif caps_words >= 1: aura += 1
-    if text.strip().endswith('?') and damage >= 4: aura += 1
-    if word_count >= 20: aura += 2
-    elif word_count >= 12: aura += 1
+    if caps_words >= 3: aura += 4   # lowered threshold, raised bonus
+    elif caps_words >= 2: aura += 3
+    elif caps_words >= 1: aura += 2  # raised 1→2
+    if text.strip().endswith('?'): aura += 2   # removed damage gate
+    if word_count >= 15: aura += 2   # lowered 20→15
+    elif word_count >= 8: aura += 1  # lowered 12→8
     for opener in AURA_OPENERS:
-        if lower.strip().startswith(opener): aura += 2; break
-    if text.count('!') >= 2: aura += 1
+        if lower.strip().startswith(opener): aura += 3; break  # raised 2→3
+    if text.count('!') >= 1: aura += 1   # lowered threshold 2→1
+    if text.count('!') >= 3: aura += 1   # extra for really hyped delivery
     aura = min(aura, 10)
 
-    creativity = 1
-    if unique_ratio > 0.9 and word_count > 8:   creativity += 3
-    elif unique_ratio > 0.75 and word_count > 5: creativity += 2
-    elif unique_ratio > 0.6 and word_count > 3:  creativity += 1
-    if word_count >= 20: creativity += 2
-    elif word_count >= 12: creativity += 1
-    if _RE_STRUCTURE.search(lower):  creativity += 2
-    if _RE_SIMILE_EXT.search(lower): creativity += 2
+    # ── CREATIVITY ──────────────────────────────────────────
+    creativity = 2  # base raised from 1→2
+    if unique_ratio > 0.85 and word_count > 6:   creativity += 4  # lowered thresholds
+    elif unique_ratio > 0.7  and word_count > 4:  creativity += 3
+    elif unique_ratio > 0.55 and word_count > 2:  creativity += 2
+    if word_count >= 15: creativity += 2   # lowered 20→15
+    elif word_count >= 8: creativity += 1  # lowered 12→8
+    if _RE_STRUCTURE.search(lower):  creativity += 3   # raised 2→3
+    if _RE_SIMILE_EXT.search(lower): creativity += 3   # raised 2→3
+    # reward comma-separated multi-part burns (complex sentence structure)
+    if text.count(',') >= 2 and word_count >= 10: creativity += 2
+    if text.count('—') >= 1 or text.count('...') >= 1: creativity += 1  # deliberate pacing
     creativity = min(creativity, 10)
 
     total = aura + damage + creativity
@@ -412,7 +445,7 @@ def get_best_burn(full_history, scores_by_msg=None):
     if len(real) < 2: return None
     try:
         lines = "\n".join([f"[{h['name']}]: {h['text']}" for h in real])
-        resp = groq_client.chat.completions.create(
+        resp = _groq_call(lambda: groq_client.chat.completions.create(
             model='llama-3.3-70b-versatile',
             messages=[
                 {'role': 'system', 'content': BEST_BURN_PROMPT},
@@ -420,7 +453,7 @@ def get_best_burn(full_history, scores_by_msg=None):
             ],
             max_tokens=120,
             temperature=0.3,
-        )
+        ))
         raw = re.sub(r'```json|```', '', resp.choices[0].message.content.strip()).strip()
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m: return None
