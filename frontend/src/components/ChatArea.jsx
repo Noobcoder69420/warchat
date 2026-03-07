@@ -186,12 +186,12 @@ function Message({ msg, myRole }) {
   )
 }
 
-export default function ChatArea({ messages, myRole }) {
+export default function ChatArea({ messages, myRole, oppTyping, oppName }) {
   const bottomRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, oppTyping])
 
   return (
     <div style={{
@@ -205,12 +205,37 @@ export default function ChatArea({ messages, myRole }) {
       <style>{`
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
         @keyframes msgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+        @keyframes typingPulse { 0%,100%{opacity:0.4;transform:scale(0.8)} 50%{opacity:1;transform:scale(1)} }
       `}</style>
       {messages.map(msg => (
         <div key={msg.id} style={{ animation: 'msgIn 0.2s ease' }}>
           <Message msg={msg} myRole={myRole} />
         </div>
       ))}
+
+      {/* Typing indicator — lives inside scroll container, below last message */}
+      {oppTyping && (
+        <div style={{
+          display: 'flex', flexDirection: 'row', gap: 8,
+          alignItems: 'center', padding: '4px 0',
+          animation: 'msgIn 0.2s ease',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '6px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)' }}>
+            {[0, 1, 2].map(i => (
+              <div key={i} style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: 'var(--dim)',
+                animation: `typingPulse 1s ease ${i * 0.2}s infinite`,
+              }} />
+            ))}
+          </div>
+          <span style={{
+            fontFamily: "'Share Tech Mono',monospace",
+            fontSize: 8, color: 'var(--dim)', letterSpacing: 1,
+          }}>{oppName?.toUpperCase()} IS TYPING...</span>
+        </div>
+      )}
+
       <div ref={bottomRef} />
     </div>
   )

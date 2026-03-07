@@ -158,20 +158,7 @@ export default function Battle() {
           lastHitTotal={state.lastHit?.total}
         />
 
-        {/* Typing indicator */}
-        {oppTyping && state.roundActive && (
-          <div style={{
-            fontFamily: "'Share Tech Mono',monospace",
-            fontSize: 9, color: 'var(--dim)',
-            letterSpacing: 2, padding: '2px 12px',
-            animation: 'blink 0.8s ease infinite',
-          }}>
-            {state.oppName?.toUpperCase()} IS TYPING...
-            <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
-          </div>
-        )}
-
-        <ChatArea messages={state.messages} myRole={state.myRole} />
+        <ChatArea messages={state.messages} myRole={state.myRole} oppTyping={oppTyping} oppName={state.oppName} />
 
         <div className={styles.inputWrap}>
           <div className={styles.inputRow}>

@@ -50,24 +50,50 @@ function playNoise({ duration = 0.1, gain = 0.2, filterFreq = 800 }) {
 // ─── BACKGROUND MUSIC ─────────────────────────────────────────────────────────
 let bgAudio = null
 let bgMuted = false
+let bgStarted = false
 
 function getBgAudio() {
   if (!bgAudio) {
     bgAudio = new Audio('/audio/bg.ogg')
     bgAudio.loop = true
     bgAudio.volume = bgMuted ? 0 : 0.25
+
+    // Safari: pause when tab is hidden, resume when visible (if not muted)
+    document.addEventListener('visibilitychange', () => {
+      if (!bgAudio) return
+      if (document.hidden) {
+        bgAudio.pause()
+      } else if (!bgMuted && bgStarted) {
+        bgAudio.play().catch(() => {})
+      }
+    })
   }
   return bgAudio
 }
 
 function startBgMusic() {
+  bgStarted = true
   try {
     const a = getBgAudio()
-    a.play().catch(() => {})
+    a.volume = bgMuted ? 0 : 0.25
+    // Try playing immediately — works after any user gesture
+    a.play().catch(() => {
+      // If blocked, retry on next user interaction
+      const retry = () => {
+        if (!bgMuted) a.play().catch(() => {})
+        document.removeEventListener('click', retry)
+        document.removeEventListener('touchstart', retry)
+        document.removeEventListener('keydown', retry)
+      }
+      document.addEventListener('click', retry, { once: true })
+      document.addEventListener('touchstart', retry, { once: true })
+      document.addEventListener('keydown', retry, { once: true })
+    })
   } catch (e) {}
 }
 
 function stopBgMusic() {
+  bgStarted = false
   if (bgAudio) {
     bgAudio.pause()
     bgAudio.currentTime = 0
@@ -84,7 +110,12 @@ export const sfx = {
 
   setBgMuted(muted) {
     bgMuted = muted
-    if (bgAudio) bgAudio.volume = muted ? 0 : 0.25
+    if (!bgAudio) return
+    if (muted) {
+      bgAudio.pause()
+    } else if (bgStarted) {
+      bgAudio.play().catch(() => {})
+    }
   },
 
   isBgMuted() { return bgMuted },
