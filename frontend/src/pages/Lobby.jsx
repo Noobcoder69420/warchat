@@ -7,24 +7,28 @@ import AvatarSelect from '../components/AvatarSelect'
 import styles from './Lobby.module.css'
 
 const AI_AGENTS = [
-  { id: 'kairos', name: 'KAIROS', title: 'The Rage Monster',     avatar: 'rage',     color: '#ff4400', desc: 'Pure unfiltered rage. Goes full CAPS. Personal and brutal.' },
-  { id: 'kira',   name: 'KIRA',   title: 'The Cold Genius',      avatar: 'genius',   color: '#00e5ff', desc: 'Surgical precision. Calm, calculated, and completely devastating.' },
-  { id: 'jinx',   name: 'JINX',   title: 'The Unhinged Wildcard', avatar: 'wildcard', color: '#b388ff', desc: 'Chaotic and unpredictable. Funny AND genuinely savage.' },
+  { id: 'kairos', name: 'KAIROS', title: 'The Rage Monster',      color: '#ff4400', desc: 'Pure unfiltered rage. Goes full CAPS.' },
+  { id: 'kira',   name: 'KIRA',   title: 'The Cold Genius',       color: '#00e5ff', desc: 'Surgical precision. Calm and devastating.' },
+  { id: 'jinx',   name: 'JINX',   title: 'The Unhinged Wildcard', color: '#b388ff', desc: 'Chaotic, funny, and genuinely savage.' },
 ]
 
 export default function Lobby() {
   const { state, dispatch } = useGame()
   const navigate = useNavigate()
-  const [hostName, setHostName] = useState('')
-  const [joinName, setJoinName] = useState('')
-  const [joinCode, setJoinCode] = useState('')
-  const [mmName, setMmName] = useState('')
-  const [aiName, setAiName] = useState('')
-  const [selectedAgent, setSelectedAgent] = useState('kairos')
-  const [tab, setTab] = useState('create')
-  const [copied, setCopied] = useState(false)
+  const [hostName, setHostName]   = useState('')
+  const [joinName, setJoinName]   = useState('')
+  const [joinCode, setJoinCode]   = useState('')
+  const [mmName, setMmName]       = useState('')
+  const [tab, setTab]             = useState('create')
+  const [copied, setCopied]       = useState(false)
   const [selectedMode, setSelectedMode] = useState('standard')
-  const [bgOn, setBgOn] = useState(() => localStorage.getItem('kw_bg') !== 'off')
+  const [bgOn, setBgOn]           = useState(() => localStorage.getItem('kw_bg') !== 'off')
+
+  // AI practice panel
+  const [showAiPanel, setShowAiPanel] = useState(false)
+  const [aiName, setAiName]           = useState('')
+  const [selectedAgent, setSelectedAgent] = useState('kairos')
+  const [aiMode, setAiMode]           = useState('standard')
 
   useEffect(() => {
     sfx.unlock()
@@ -42,9 +46,9 @@ export default function Lobby() {
   }
 
   const MODES = [
-    { key: 'blitz',     label: '⚡ BLITZ',     desc: '20s · First to 2 rounds', color: '#f0c040' },
-    { key: 'standard',  label: '⚔️ STANDARD',  desc: '45s · First to 3 rounds', color: '#00e5ff' },
-    { key: 'big_brain', label: '🧠 BIG BRAIN', desc: '90s · First to 2 rounds', color: '#b388ff' },
+    { key: 'blitz',     label: '⚡ BLITZ',     desc: '20s · First to 2', color: '#f0c040' },
+    { key: 'standard',  label: '⚔️ STANDARD',  desc: '45s · First to 3', color: '#00e5ff' },
+    { key: 'big_brain', label: '🧠 BIG BRAIN', desc: '90s · First to 2', color: '#b388ff' },
   ]
 
   useEffect(() => {
@@ -78,7 +82,7 @@ export default function Lobby() {
     if (!aiName.trim()) { dispatch({ type: 'SET_STATUS', msg: 'ENTER YOUR FIGHTER NAME', stype: 'err' }); return }
     socket.emit('join_ai_battle', {
       name: aiName.trim(), avatar: state.myAvatar,
-      agent_id: selectedAgent, mode: selectedMode,
+      agent_id: selectedAgent, mode: aiMode,
     })
   }
 
@@ -93,6 +97,125 @@ export default function Lobby() {
 
   return (
     <div className={styles.page} onClick={unlock}>
+      {/* AI PRACTICE MODAL */}
+      {showAiPanel && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 200,
+          background: 'rgba(5,5,8,0.92)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20,
+          animation: 'fadeIn 0.2s ease',
+        }}>
+          <style>{`@keyframes fadeIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}`}</style>
+          <div style={{
+            width: '100%', maxWidth: 420,
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--panel)',
+            padding: '24px 20px',
+            display: 'flex', flexDirection: 'column', gap: 14,
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontFamily:"'Black Ops One',cursive", fontSize: 18, color: 'var(--neon-yellow)', letterSpacing: 2 }}>
+                  PRACTICE VS AI
+                </div>
+                <div style={{ fontFamily:"'Share Tech Mono',monospace", fontSize: 9, color: 'var(--dim)', letterSpacing: 2, marginTop: 2 }}>
+                  NO WAITING · INSTANT BATTLE
+                </div>
+              </div>
+              <button onClick={() => setShowAiPanel(false)} style={{
+                background: 'transparent', border: '1px solid rgba(255,255,255,0.15)',
+                color: 'var(--dim)', cursor: 'pointer',
+                fontFamily: "'Share Tech Mono',monospace", fontSize: 11,
+                padding: '4px 10px', letterSpacing: 1,
+              }}>✕ CLOSE</button>
+            </div>
+
+            {/* Name */}
+            <div>
+              <label className={styles.label}>YOUR FIGHTER NAME</label>
+              <input
+                className={styles.input}
+                value={aiName}
+                onChange={e => setAiName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && joinAiBattle()}
+                placeholder="e.g. KeyboardKing"
+                maxLength={20}
+                disabled={!state.connected}
+                autoFocus
+              />
+            </div>
+
+            {/* Avatar */}
+            <AvatarSelect selected={state.myAvatar} onSelect={av => dispatch({ type: 'SET_AVATAR', avatar: av })} />
+
+            {/* Agent picker */}
+            <div>
+              <label className={styles.label}>CHOOSE OPPONENT</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {AI_AGENTS.map(agent => (
+                  <button
+                    key={agent.id}
+                    onClick={() => setSelectedAgent(agent.id)}
+                    style={{
+                      padding: '9px 12px',
+                      cursor: 'pointer',
+                      background: selectedAgent === agent.id ? `${agent.color}12` : 'transparent',
+                      border: `1px solid ${selectedAgent === agent.id ? agent.color : 'rgba(255,255,255,0.07)'}`,
+                      color: selectedAgent === agent.id ? agent.color : 'var(--dim)',
+                      fontFamily: "'Share Tech Mono',monospace",
+                      textAlign: 'left',
+                      transition: 'all 0.12s',
+                      display: 'flex', alignItems: 'center', gap: 10,
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontFamily:"'Black Ops One',cursive", fontSize: 12, letterSpacing: 1, color: selectedAgent === agent.id ? agent.color : 'var(--fg)' }}>
+                        {agent.name}
+                      </span>
+                      <span style={{ fontSize: 8, color: 'var(--dim)', marginLeft: 8, letterSpacing: 1 }}>{agent.title}</span>
+                      <div style={{ fontSize: 8, marginTop: 3, color: selectedAgent === agent.id ? `${agent.color}bb` : 'rgba(255,255,255,0.2)' }}>{agent.desc}</div>
+                    </div>
+                    {selectedAgent === agent.id && <span style={{ color: agent.color, fontSize: 10 }}>◀</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Mode picker */}
+            <div>
+              <label className={styles.label}>MATCH MODE</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {MODES.map(m => (
+                  <button key={m.key} onClick={() => setAiMode(m.key)} style={{
+                    flex: 1, padding: '8px 4px', cursor: 'pointer',
+                    background: aiMode === m.key ? `${m.color}18` : 'transparent',
+                    border: `1px solid ${aiMode === m.key ? m.color : 'rgba(255,255,255,0.08)'}`,
+                    color: aiMode === m.key ? m.color : 'var(--dim)',
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: 9, letterSpacing: 1, textAlign: 'center',
+                    transition: 'all 0.12s',
+                  }}>
+                    <div style={{ fontSize: 13 }}>{m.label.split(' ')[0]}</div>
+                    <div style={{ fontSize: 8, marginTop: 2 }}>{m.label.split(' ').slice(1).join(' ')}</div>
+                    <div style={{ fontSize: 7, color: 'var(--dim)', marginTop: 2 }}>{m.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              className={`${styles.btn} ${styles.btnCyan}`}
+              onClick={joinAiBattle}
+              disabled={!state.connected}
+            >
+              FIGHT AI
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className={styles.container}>
         <header className={styles.header}>
           <h1 className={styles.logo}>KEY<span>BOARD</span> WARRIOR</h1>
@@ -102,6 +225,25 @@ export default function Lobby() {
             <span className={styles.onlineCount}>
               {state.onlineCount} {state.onlineCount === 1 ? 'WARRIOR' : 'WARRIORS'} ONLINE
             </span>
+            {/* AI practice prompt — subtle, contextual */}
+            <button
+              onClick={() => setShowAiPanel(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255,255,255,0.25)',
+                fontFamily: "'Share Tech Mono',monospace",
+                fontSize: 8, letterSpacing: 1,
+                cursor: 'pointer', padding: '2px 6px',
+                textDecoration: 'underline',
+                textDecorationColor: 'rgba(255,255,255,0.12)',
+                transition: 'color 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--neon-yellow)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.25)'}
+            >
+              practice vs AI?
+            </button>
             <button onClick={toggleBg} style={{
               marginLeft: 'auto',
               background: 'transparent',
@@ -120,9 +262,9 @@ export default function Lobby() {
         )}
 
         <div className={styles.tabs}>
-          {['create','join','matchmaking','ai'].map(t => (
+          {['create','join','matchmaking'].map(t => (
             <button key={t} className={`${styles.tab} ${tab===t?styles.tabActive:''}`} onClick={() => setTab(t)}>
-              {t==='create'?'⚡ CREATE':t==='join'?'🔥 JOIN':t==='matchmaking'?'🎯 FIND':'🤖 VS AI'}
+              {t==='create'?'⚡ CREATE':t==='join'?'🔥 JOIN':'🎯 FIND'}
             </button>
           ))}
         </div>
@@ -207,99 +349,22 @@ export default function Lobby() {
           </div>
         )}
 
-        {tab === 'ai' && (
-          <div className={`${styles.panel} ${styles.red}`}>
-            <label className={styles.label}>YOUR FIGHTER NAME</label>
-            <input
-              className={styles.input}
-              value={aiName}
-              onChange={e => setAiName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && joinAiBattle()}
-              placeholder="e.g. KeyboardKing"
-              maxLength={20}
-              disabled={!state.connected}
-            />
-            <AvatarSelect selected={state.myAvatar} onSelect={av => dispatch({ type: 'SET_AVATAR', avatar: av })} />
-
-            <label className={styles.label} style={{ marginTop: 8 }}>CHOOSE YOUR OPPONENT</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-              {AI_AGENTS.map(agent => (
-                <button
-                  key={agent.id}
-                  onClick={() => setSelectedAgent(agent.id)}
-                  style={{
-                    padding: '10px 14px',
-                    cursor: 'pointer',
-                    background: selectedAgent === agent.id ? `${agent.color}14` : 'transparent',
-                    border: `1px solid ${selectedAgent === agent.id ? agent.color : 'rgba(255,255,255,0.08)'}`,
-                    color: selectedAgent === agent.id ? agent.color : 'var(--dim)',
-                    fontFamily: "'Share Tech Mono',monospace",
-                    textAlign: 'left',
-                    transition: 'all 0.15s',
-                    display: 'flex', alignItems: 'center', gap: 12,
-                  }}
-                >
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, letterSpacing: 2, fontFamily: "'Black Ops One',cursive", color: selectedAgent === agent.id ? agent.color : 'var(--fg)' }}>
-                      {agent.name}
-                    </div>
-                    <div style={{ fontSize: 8, letterSpacing: 1, color: 'var(--dim)', marginTop: 2 }}>{agent.title}</div>
-                    <div style={{ fontSize: 9, marginTop: 4, color: selectedAgent === agent.id ? `${agent.color}cc` : 'rgba(255,255,255,0.3)' }}>{agent.desc}</div>
-                  </div>
-                  {selectedAgent === agent.id && (
-                    <div style={{ fontSize: 16, flexShrink: 0 }}>◀</div>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            <label className={styles.label}>CHOOSE MATCH MODE</label>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              {MODES.map(m => (
-                <button key={m.key} onClick={() => setSelectedMode(m.key)} style={{
-                  flex: 1, padding: '10px 4px', cursor: 'pointer',
-                  background: selectedMode === m.key ? `${m.color}18` : 'transparent',
-                  border: `1px solid ${selectedMode === m.key ? m.color : 'rgba(255,255,255,0.1)'}`,
-                  color: selectedMode === m.key ? m.color : 'var(--dim)',
-                  fontFamily: "'Share Tech Mono',monospace",
-                  fontSize: 10, letterSpacing: 1, lineHeight: 1.6,
-                  transition: 'all 0.15s', textAlign: 'center',
-                }}>
-                  <div style={{ fontSize: 14 }}>{m.label.split(' ')[0]}</div>
-                  <div style={{ fontSize: 9, marginTop: 2 }}>{m.label.split(' ').slice(1).join(' ')}</div>
-                  <div style={{ fontSize: 8, color: 'var(--dim)', marginTop: 3 }}>{m.desc}</div>
-                </button>
-              ))}
-            </div>
-
-            <button className={`${styles.btn} ${styles.btnRed}`} onClick={joinAiBattle} disabled={!state.connected}>
-              FIGHT AI
-            </button>
-            <p className={styles.hint}>No waiting. Instant battle. AI responds in real-time.</p>
-          </div>
-        )}
-
-        <div className={styles.footer} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <div className={styles.footer} style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:14, flexWrap:'wrap' }}>
           <span>POWERED BY FLASK · SOCKET.IO · GROQ AI</span>
           <a
-            href="https://x.com/yourusername"
+            href="https://x.com/gskin751"
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              color: 'var(--dim)',
-              textDecoration: 'none',
+              color: 'var(--dim)', textDecoration: 'none',
               fontFamily: "'Share Tech Mono',monospace",
-              fontSize: 9,
-              letterSpacing: 1,
+              fontSize: 9, letterSpacing: 1,
               borderBottom: '1px solid rgba(255,255,255,0.15)',
-              paddingBottom: 1,
-              transition: 'color 0.15s',
+              paddingBottom: 1, transition: 'color 0.15s',
             }}
             onMouseEnter={e => e.target.style.color = 'var(--neon-cyan)'}
             onMouseLeave={e => e.target.style.color = 'var(--dim)'}
-          >
-            𝕏 @yourusername · report a bug
-          </a>
+          >𝕏 @gskin751 · report a bug</a>
         </div>
       </div>
     </div>

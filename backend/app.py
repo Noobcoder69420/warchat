@@ -422,16 +422,20 @@ def on_join_ai_battle(data):
         'max_rounds': m['max_rounds'],
     })
 
-    # Start the battle immediately (no second player to wait for)
-    room_manager.set_round_active(room_id, True)
-    socketio.emit('battle_start', {
-        'p1_name': name, 'p2_name': ai_name, 'round': 1,
-        'mode': mode, 'mode_label': m['label'],
-        'round_time': m['round_time'],
-        'rounds_to_win': m['rounds_to_win'],
-        'max_rounds': m['max_rounds'],
-    }, room=room_id)
-    threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
+    # Small delay so client processes room_joined before battle_start
+    def start_ai_battle():
+        time.sleep(0.1)
+        room_manager.set_round_active(room_id, True)
+        socketio.emit('battle_start', {
+            'p1_name': name, 'p2_name': ai_name, 'round': 1,
+            'mode': mode, 'mode_label': m['label'],
+            'round_time': m['round_time'],
+            'rounds_to_win': m['rounds_to_win'],
+            'max_rounds': m['max_rounds'],
+        }, room=room_id)
+        threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
+
+    threading.Thread(target=start_ai_battle, daemon=True).start()
 
 
 @socketio.on('send_message')
