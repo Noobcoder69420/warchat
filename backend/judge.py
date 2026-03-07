@@ -237,36 +237,43 @@ CURRENT MESSAGE (language: {lang}):
 
 Score it."""
 
-    try:
-        resp = groq_client.chat.completions.create(
-            model='llama-3.3-70b-versatile',
-            messages=[
-                {'role': 'system', 'content': SYSTEM_PROMPT},
-                {'role': 'user',   'content': user_prompt},
-            ],
-            max_tokens=100,
-            temperature=0.1,
-        )
-        raw = re.sub(r'```json|```', '', resp.choices[0].message.content.strip()).strip()
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if not match:
-            raise ValueError(f'No JSON in response: {raw}')
-        s = json.loads(match.group())
-        aura       = max(0, min(int(s.get('aura',       0)), 10))
-        damage     = max(0, min(int(s.get('damage',     0)), 10))
-        creativity = max(0, min(int(s.get('creativity', 0)), 10))
-        total      = aura + damage + creativity
-        verdict    = str(s.get('verdict', 'SHOT FIRED')).upper()[:50]
+    for attempt in range(2):  # retry once on rate limit
+        try:
+            resp = groq_client.chat.completions.create(
+                model='llama-3.3-70b-versatile',
+                messages=[
+                    {'role': 'system', 'content': SYSTEM_PROMPT},
+                    {'role': 'user',   'content': user_prompt},
+                ],
+                max_tokens=100,
+                temperature=0.1,
+            )
+            raw = re.sub(r'```json|```', '', resp.choices[0].message.content.strip()).strip()
+            match = re.search(r'\{.*\}', raw, re.DOTALL)
+            if not match:
+                raise ValueError(f'No JSON in response: {raw}')
+            s = json.loads(match.group())
+            aura       = max(0, min(int(s.get('aura',       0)), 10))
+            damage     = max(0, min(int(s.get('damage',     0)), 10))
+            creativity = max(0, min(int(s.get('creativity', 0)), 10))
+            total      = aura + damage + creativity
+            verdict    = str(s.get('verdict', 'SHOT FIRED')).upper()[:50]
 
-        # Callback verdict boost for high-scoring contextual replies
-        if total >= 24 and len(history) >= 2:
-            if random.random() > 0.5: verdict = pick('callback')
+            # Callback verdict boost for high-scoring contextual replies
+            if total >= 24 and len(history) >= 2:
+                if random.random() > 0.5: verdict = pick('callback')
 
-        print(f'[GROQ:{lang}] "{text[:30]}" → {total}pts | {verdict}')
-        return {'aura': aura, 'damage': damage, 'creativity': creativity, 'total': total, 'verdict': verdict}
-    except Exception as e:
-        print(f'[GROQ ERROR] {e}')
-        return heuristic_judge(text)
+            print(f'[GROQ:{lang}] "{text[:30]}" → {total}pts | {verdict}')
+            return {'aura': aura, 'damage': damage, 'creativity': creativity, 'total': total, 'verdict': verdict}
+        except Exception as e:
+            err_str = str(e).lower()
+            if ('rate' in err_str or '429' in err_str) and attempt == 0:
+                print(f'[GROQ RATE LIMIT] retrying in 2s...')
+                import time as _t; _t.sleep(2)
+                continue
+            print(f'[GROQ ERROR] {e}')
+            return heuristic_judge(text)
+    return heuristic_judge(text)
 
 # ─── HEURISTIC FALLBACK ───────────────────────────────────────────────────────
 
