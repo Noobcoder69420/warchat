@@ -109,12 +109,16 @@ document.addEventListener('visibilitychange', () => {
 })
 
 function startBgMusic() {
-  if (bgStarted && bgAudio && !bgAudio.paused) return  // already playing
   bgStarted = true
+  if (bgMuted) return  // don't play if muted
   if (bgAudio && bgAudio.paused && bgAudio.currentTime > 0) {
-    // Resume mid-track (e.g. toggled back on)
-    bgAudio.volume = bgMuted ? 0 : 0.25
+    // Resume mid-track (toggled back on)
+    bgAudio.volume = 0.25
     bgAudio.play().catch(() => {})
+  } else if (!bgAudio || bgAudio.ended || bgAudio.currentTime === 0) {
+    playNextTrack()
+  } else if (!bgAudio.paused) {
+    // already playing, do nothing
   } else {
     playNextTrack()
   }
@@ -142,7 +146,13 @@ export const sfx = {
     if (muted) {
       if (bgAudio) bgAudio.pause()
     } else {
-      startBgMusic()
+      // Always try to play when unmuting
+      if (bgAudio && bgAudio.paused && bgAudio.src) {
+        bgAudio.volume = 0.25
+        bgAudio.play().catch(() => {})
+      } else if (!bgAudio || bgAudio.ended) {
+        playNextTrack()
+      }
     }
   },
 

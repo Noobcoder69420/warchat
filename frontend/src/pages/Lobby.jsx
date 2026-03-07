@@ -225,24 +225,32 @@ export default function Lobby() {
             <span className={styles.onlineCount}>
               {state.onlineCount} {state.onlineCount === 1 ? 'WARRIOR' : 'WARRIORS'} ONLINE
             </span>
-            {/* AI practice prompt — subtle, contextual */}
+          {/* VS AI — glowing practice button */}
             <button
               onClick={() => setShowAiPanel(true)}
               style={{
                 background: 'transparent',
-                border: 'none',
-                color: 'rgba(255,255,255,0.25)',
+                border: '1px solid rgba(255, 200, 0, 0.5)',
+                color: '#ffc800',
                 fontFamily: "'Share Tech Mono',monospace",
-                fontSize: 8, letterSpacing: 1,
-                cursor: 'pointer', padding: '2px 6px',
-                textDecoration: 'underline',
-                textDecorationColor: 'rgba(255,255,255,0.12)',
-                transition: 'color 0.15s',
+                fontSize: 9, letterSpacing: 2,
+                padding: '3px 10px', cursor: 'pointer',
+                textShadow: '0 0 8px rgba(255,200,0,0.6)',
+                boxShadow: '0 0 8px rgba(255,200,0,0.15)',
+                transition: 'all 0.15s',
               }}
-              onMouseEnter={e => e.currentTarget.style.color = 'var(--neon-yellow)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.25)'}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = '#ffc800'
+                e.currentTarget.style.boxShadow = '0 0 16px rgba(255,200,0,0.4)'
+                e.currentTarget.style.background = 'rgba(255,200,0,0.08)'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'rgba(255,200,0,0.5)'
+                e.currentTarget.style.boxShadow = '0 0 8px rgba(255,200,0,0.15)'
+                e.currentTarget.style.background = 'transparent'
+              }}
             >
-              practice vs AI?
+              🤖 VS AI
             </button>
             <button onClick={toggleBg} style={{
               marginLeft: 'auto',

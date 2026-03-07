@@ -24,8 +24,9 @@ const initialState = {
   lastHit: null,
   oppDisconnected: false,
   oppReconnecting: false,
-  bestBurn: null,       // best burn of the current round
-  matchBestBurn: null,  // best burn of the whole match (highest scoring round's burn)
+  bestBurn: null,
+  matchBestBurn: null,
+  battleKey: 0,  // increments on each new battle to force remount of Countdown
 }
 
 function reducer(state, action) {
@@ -73,6 +74,8 @@ function reducer(state, action) {
         p1RoundWins: 0, p2RoundWins: 0,
         messages: [], matchOver: false, matchWinner: '', matchWinnerRole: '',
         lastHit: null, oppDisconnected: false, oppReconnecting: false,
+        bestBurn: null, matchBestBurn: null,
+        battleKey: state.battleKey + 1,
       }
 
     case 'COUNTDOWN_DONE':

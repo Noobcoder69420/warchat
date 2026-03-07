@@ -78,7 +78,7 @@ class RoomManager:
                     },
                     'scores': {'p1': 0, 'p2': 0}, 'round_wins': {'p1': 0, 'p2': 0},
                     'current_round': 1, 'round_active': False, 'rematch_requests': set(),
-                    'round_history': [],
+                    'round_history': [], 'full_round_history': [],
                 }
                 self._sid_to_room[p1_sid] = room_id
                 self._sid_to_room[p2_sid] = room_id
@@ -104,11 +104,13 @@ class RoomManager:
                 return None
             name = room['players'][role]['name']
             avatar = room['players'][role].get('avatar', 'rage')
-            self._pending_rejoin[f'{room_id}:{role}'] = {
-                'old_sid': sid, 'room_id': room_id, 'role': role,
-                'name': name, 'avatar': avatar,
-                'expires_at': datetime.utcnow() + timedelta(seconds=15)
-            }
+            # AI rooms: no rejoin pending — just clean up
+            if not room.get('is_ai_room'):
+                self._pending_rejoin[f'{room_id}:{role}'] = {
+                    'old_sid': sid, 'room_id': room_id, 'role': role,
+                    'name': name, 'avatar': avatar,
+                    'expires_at': datetime.utcnow() + timedelta(seconds=15)
+                }
             self._sid_to_room.pop(sid, None)
             return (room_id, role, name)
 

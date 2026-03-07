@@ -244,7 +244,7 @@ export default function Battle() {
       )}
 
       {state.showCountdown && (
-        <Countdown round={state.round} onDone={() => dispatch({ type: 'COUNTDOWN_DONE' })} />
+        <Countdown key={state.battleKey} round={state.round} onDone={() => dispatch({ type: 'COUNTDOWN_DONE' })} />
       )}
 
       <CrowdReactions lastScore={lastScore} />
