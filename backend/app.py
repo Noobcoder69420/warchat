@@ -7,7 +7,7 @@ from flask import Flask, request
 from flask_socketio import SocketIO, emit, join_room
 from flask_cors import CORS
 from rooms import RoomManager
-from judge import judge_message
+from judge import judge_message, get_best_burn
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'kw-dev-secret')
@@ -110,6 +110,14 @@ def end_round(room_id):
         'p1_round_wins': p1_wins, 'p2_round_wins': p2_wins,
         'match_over': match_over
     }, room=room_id)
+
+    # Fire best burn async — arrives ~1s later, displayed on round-over screen
+    full_history = room_manager.get_full_history(room_id)
+    def emit_best_burn():
+        burn = get_best_burn(full_history)
+        if burn:
+            socketio.emit('best_burn', burn, room=room_id)
+    threading.Thread(target=emit_best_burn, daemon=True).start()
 
     if match_over:
         if p1_wins > p2_wins:

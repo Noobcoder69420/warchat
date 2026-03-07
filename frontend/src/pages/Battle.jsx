@@ -255,6 +255,7 @@ export default function Battle() {
         p1RoundWins={state.p1RoundWins} p2RoundWins={state.p2RoundWins}
         roundActive={state.roundActive} matchOver={state.matchOver}
         showCountdown={state.showCountdown}
+        bestBurn={state.bestBurn}
       />
 
       <MatchOverlay
@@ -267,6 +268,7 @@ export default function Battle() {
         p1Wins={state.p1RoundWins} p2Wins={state.p2RoundWins}
         onRematch={handleRematch}
         onLeave={handleLeave}
+        matchBestBurn={state.matchBestBurn}
       />
 
       <style>{`

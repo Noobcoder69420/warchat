@@ -24,6 +24,8 @@ const initialState = {
   lastHit: null,
   oppDisconnected: false,
   oppReconnecting: false,
+  bestBurn: null,       // best burn of the current round
+  matchBestBurn: null,  // best burn of the whole match (highest scoring round's burn)
 }
 
 function reducer(state, action) {
@@ -101,6 +103,9 @@ function reducer(state, action) {
         p2Score: action.role === 'p2' ? state.p2Score + action.scores.total : state.p2Score,
       }
 
+    case 'BEST_BURN':
+      return { ...state, bestBurn: action.burn, matchBestBurn: action.burn }
+
     case 'ROUND_END':
       return { ...state, roundActive: false, p1RoundWins: action.p1_round_wins, p2RoundWins: action.p2_round_wins }
 
@@ -113,6 +118,7 @@ function reducer(state, action) {
         p1RoundWins: action.p1_round_wins,
         p2RoundWins: action.p2_round_wins,
         lastHit: null,
+        bestBurn: null,
         messages: [...state.messages, {
           id: 'sys-r' + action.round + '-' + Date.now(),
           role: 'system', name: 'SYSTEM',
@@ -230,6 +236,7 @@ export function GameProvider({ children }) {
     socket.on('new_message',  d => { dispatch({ type: 'NEW_MESSAGE', ...d }); sfx.messageSent() })
     socket.on('score_result', d => dispatch({ type: 'SCORE_RESULT', ...d }))
     socket.on('round_end',    d => { dispatch({ type: 'ROUND_END', ...d }); sfx.roundEnd() })
+    socket.on('best_burn',    d => { dispatch({ type: 'BEST_BURN', burn: d }) })
     socket.on('round_start',  d => dispatch({ type: 'ROUND_START', ...d }))
     socket.on('match_end',    d => {
       sessionStorage.removeItem('kw_session')
