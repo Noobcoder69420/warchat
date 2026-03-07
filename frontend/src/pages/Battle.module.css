@@ -1,8 +1,11 @@
+/* ── PAGE — fills exact viewport, keyboard shrinks it via interactive-widget ── */
 .page {
-  min-height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  padding: 6px 8px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  overflow: hidden;
 }
 
 .layout {
@@ -11,32 +14,76 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   flex: 1;
+  min-height: 0; /* critical: lets flex children shrink */
 }
 
+/* ── FIGHTERS ROW ─────────────────────────────────────────────────────────── */
 .fightersRow {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .vsBadge {
   font-family: 'Black Ops One', cursive;
-  font-size: 22px;
+  font-size: 18px;
   color: var(--neon-yellow);
   text-shadow: 0 0 15px var(--neon-yellow);
   text-align: center;
   white-space: nowrap;
-  padding: 0 4px;
+  padding: 0 2px;
 }
 
-.inputWrap { display: flex; flex-direction: column; gap: 2px; }
+/* ── INPUT ZONE — always sticks to bottom ─────────────────────────────────── */
+.inputWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Quick-fire burn strip */
+.quickFire {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 0;
+}
+.quickFire::-webkit-scrollbar { display: none; }
+
+.quickBtn {
+  flex-shrink: 0;
+  padding: 7px 11px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--dim);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.12s;
+  /* 44px minimum touch target height via line-height + padding */
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+.quickBtn:active {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.3);
+  color: var(--text);
+  transform: scale(0.97);
+}
 
 .inputRow {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .battleInput {
@@ -45,22 +92,25 @@
   border: 1px solid var(--border);
   border-bottom: 2px solid;
   color: var(--text);
-  padding: 11px 14px;
+  padding: 11px 12px;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 15px;
+  font-size: 16px; /* 16px prevents iOS zoom-on-focus */
   font-weight: 600;
   outline: none;
   transition: background 0.2s;
+  min-height: 44px;
+  border-radius: 0;
+  -webkit-appearance: none;
 }
 .battleInput:focus { background: rgba(255,255,255,0.06); }
-.battleInput::placeholder { color: var(--dim); font-weight: 400; }
+.battleInput::placeholder { color: var(--dim); font-weight: 400; font-size: 14px; }
 .battleInput:disabled { opacity: 0.3; }
 
 .p1Input { border-bottom-color: var(--neon-cyan); }
 .p2Input { border-bottom-color: var(--neon-red); }
 
 .sendBtn {
-  padding: 11px 20px;
+  padding: 0 18px;
   border: none;
   font-family: 'Black Ops One', cursive;
   font-size: 12px;
@@ -69,18 +119,62 @@
   clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
   transition: all 0.15s;
   white-space: nowrap;
+  min-height: 44px;
+  min-width: 64px;
+  flex-shrink: 0;
 }
 
 .p1 { background: var(--neon-cyan); color: #000; }
 .p2 { background: var(--neon-red);  color: #fff; }
-.sendBtn:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
-.sendBtn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+.sendBtn:active:not(:disabled) { opacity: 0.75; transform: scale(0.97); }
+.sendBtn:hover:not(:disabled) { opacity: 0.85; }
+.sendBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ── BOTTOM BAR — forfeit / music / char count ────────────────────────────── */
+.bottomBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 .charCount {
   font-family: 'Share Tech Mono', monospace;
   font-size: 10px;
   color: var(--dim);
+  flex-shrink: 0;
+}
+
+.iconBtn {
+  padding: 8px 12px;
+  background: transparent;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s;
+  min-height: 36px;
+  min-width: 44px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+}
+
+.musicBtn {
+  border: 1px solid rgba(0,245,255,0.3);
+  color: var(--neon-cyan);
+}
+.musicBtn.off {
+  border-color: rgba(255,255,255,0.15);
+  color: var(--dim);
+}
+
+.forfeitBtn {
+  margin-left: auto;
+  border: 1px solid rgba(255,0,60,0.3);
+  color: rgba(255,0,60,0.5);
+  padding: 8px 14px;
+}
+.forfeitBtn:active {
+  border-color: var(--neon-red);
+  color: var(--neon-red);
 }

@@ -80,3 +80,16 @@ body::before {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── MOBILE BASE ───────────────────────────────────────────────────────────── */
+/* Prevent tap highlight flash on buttons/divs */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Prevent iOS font size inflation */
+html { -webkit-text-size-adjust: 100%; }
+
+/* Safe area padding for notch / home bar */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Touch-friendly minimum tap target */
+button { touch-action: manipulation; }

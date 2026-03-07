@@ -20,12 +20,12 @@ export default function AvatarSelect({ selected, onSelect }) {
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
         gap: 6,
-        marginBottom: 8
+        marginBottom: 8,
       }}>
         {AVATARS.map(av => (
           <div
             key={av.id}
-            onClick={() => onSelect(av.id)}
+            onPointerDown={e => { e.preventDefault(); onSelect(av.id) }}
             title={`${av.name} — ${av.title}`}
             style={{
               cursor: 'pointer',

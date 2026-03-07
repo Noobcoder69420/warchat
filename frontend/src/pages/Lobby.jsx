@@ -107,7 +107,7 @@ export default function Lobby() {
           animation: 'fadeIn 0.2s ease',
         }}>
           <style>{`@keyframes fadeIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}`}</style>
-          <div style={{
+          <div className={styles.aiModal} style={{
             width: '100%', maxWidth: 420,
             border: '1px solid rgba(255,255,255,0.1)',
             background: 'var(--panel)',
@@ -285,10 +285,10 @@ export default function Lobby() {
                 <input className={styles.input} value={hostName} onChange={e=>setHostName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createRoom()} placeholder="e.g. ChadGPT" maxLength={20} disabled={!state.connected} />
                 <AvatarSelect selected={state.myAvatar} onSelect={av => dispatch({ type: 'SET_AVATAR', avatar: av })} />
                 <label className={styles.label} style={{marginTop:8}}>CHOOSE MATCH MODE</label>
-                <div style={{display:'flex', gap:8, marginBottom:8}}>
+                <div style={{display:'flex', gap:6, marginBottom:8, flexWrap:'wrap'}}>
                   {MODES.map(m => (
                     <button key={m.key} onClick={() => setSelectedMode(m.key)} style={{
-                      flex:1, padding:'10px 4px', cursor:'pointer',
+                      flex:1, minWidth:'80px', padding:'10px 4px', cursor:'pointer',
                       background: selectedMode === m.key ? `${m.color}18` : 'transparent',
                       border: `1px solid ${selectedMode === m.key ? m.color : 'rgba(255,255,255,0.1)'}`,
                       color: selectedMode === m.key ? m.color : 'var(--dim)',

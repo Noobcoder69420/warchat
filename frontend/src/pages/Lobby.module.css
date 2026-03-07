@@ -285,3 +285,50 @@
   color: var(--dim);
   letter-spacing: 2px;
 }
+
+/* ── MOBILE LOBBY FIXES ─────────────────────────────────────────────────── */
+
+/* Online bar wraps instead of overflowing */
+.onlineBar {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* Mode selector wraps on tiny screens */
+@media (max-width: 360px) {
+  .modeGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tab buttons bigger tap targets */
+.tab {
+  min-height: 40px;
+}
+
+/* Lobby panel padding tighter on small screens */
+@media (max-width: 400px) {
+  .panel {
+    padding: 16px;
+  }
+}
+
+/* Input min-height for iOS */
+.input {
+  min-height: 44px;
+  font-size: 16px; /* prevent iOS zoom */
+  border-radius: 0;
+  -webkit-appearance: none;
+}
+
+/* Buttons min tap target */
+.btn {
+  min-height: 44px;
+}
+
+/* AI modal scrollable on short phones */
+.aiModal {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: calc(100dvh - 32px);
+}

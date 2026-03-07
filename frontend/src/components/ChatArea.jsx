@@ -196,8 +196,11 @@ export default function ChatArea({ messages, myRole, oppTyping, oppName }) {
 
   return (
     <div style={{
-      flex: 1, minHeight: 220, maxHeight: 340,
+      flex: 1,
+      minHeight: 0,       /* critical: allow flex child to shrink */
       overflowY: 'auto',
+      overscrollBehavior: 'contain',
+      WebkitOverflowScrolling: 'touch',
       background: 'var(--panel)',
       border: '1px solid var(--border)',
       padding: 10,

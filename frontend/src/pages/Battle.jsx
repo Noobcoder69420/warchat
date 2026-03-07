@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGame } from '../context/GameContext'
 import socket from '../socket'
@@ -14,6 +14,22 @@ import CrowdReactions from '../components/CrowdReactions'
 import { getAvatar } from '../avatars'
 import styles from './Battle.module.css'
 
+// ── Quick-fire burns per role/avatar (tab to send instantly) ─────────────────
+const QUICK_BURNS = [
+  "you type like you're using your elbows",
+  "autocorrect is carrying you rn",
+  "my grandma hits harder than this",
+  "bro actually thought that was good 💀",
+  "is that your best? seriously?",
+  "skill issue detected",
+  "you're losing to yourself at this point",
+  "i've seen better insults from a fortune cookie",
+  "ratio incoming 📉",
+  "go touch some grass before you embarrass yourself more",
+  "you really queued up for THIS?",
+  "the audacity with zero talent is crazy",
+]
+
 export default function Battle() {
   const { state, dispatch } = useGame()
   const navigate = useNavigate()
@@ -21,28 +37,30 @@ export default function Battle() {
   const [shake, setShake] = useState(false)
   const [bgOn, setBgOn] = useState(() => localStorage.getItem('kw_bg') !== 'off')
   const [oppTyping, setOppTyping] = useState(false)
+  const [quickBurns] = useState(() => {
+    // Shuffle and pick 6 for the strip
+    const arr = [...QUICK_BURNS].sort(() => Math.random() - 0.5)
+    return arr.slice(0, 6)
+  })
   const inputRef = useRef(null)
   const typingTimeout = useRef(null)
   const typingEmitTimeout = useRef(null)
 
   const p1Name = state.myRole === 'p1' ? state.myName : state.oppName
   const p2Name = state.myRole === 'p2' ? state.myName : state.oppName
-  const myAv  = getAvatar(state.myAvatar)
-  const oppAv = getAvatar(state.oppAvatar || 'rage')
-  const p1Av  = state.myRole === 'p1' ? myAv : oppAv
-  const p2Av  = state.myRole === 'p2' ? myAv : oppAv
+  const myAv   = getAvatar(state.myAvatar)
+  const oppAv  = getAvatar(state.oppAvatar || 'rage')
+  const p1Av   = state.myRole === 'p1' ? myAv : oppAv
+  const p2Av   = state.myRole === 'p2' ? myAv : oppAv
 
-  // Navigate away when back to lobby
   useEffect(() => {
     if (state.screen === 'lobby') navigate('/')
   }, [state.screen])
 
-  // Focus input when round starts
   useEffect(() => {
     if (state.roundActive && inputRef.current) inputRef.current.focus()
   }, [state.roundActive])
 
-  // ── WIN/LOSE SFX — use role not name ──
   useEffect(() => {
     if (!state.matchOver) return
     const isTie = state.matchWinnerRole === 'tie'
@@ -52,7 +70,6 @@ export default function Battle() {
     else sfx.lose()
   }, [state.matchOver])
 
-  // ── SCREEN SHAKE on heavy hits ──
   useEffect(() => {
     if (state.lastHit && state.lastHit.total >= 20) triggerShake(1)
     if (state.lastHit && state.lastHit.total >= 25) triggerShake(2)
@@ -63,7 +80,6 @@ export default function Battle() {
     setTimeout(() => setShake(false), intensity === 3 ? 800 : 400)
   }
 
-  // ── BG MUSIC ──
   useEffect(() => {
     sfx.unlock()
     if (bgOn) sfx.startBg()
@@ -79,7 +95,6 @@ export default function Battle() {
     else sfx.setBgMuted(true)
   }
 
-  // ── TYPING INDICATOR ──
   useEffect(() => {
     socket.on('opponent_typing', () => {
       setOppTyping(true)
@@ -92,20 +107,20 @@ export default function Battle() {
 
   function handleInputChange(e) {
     setInput(e.target.value)
-    // Throttle typing emit to every 800ms
     if (!typingEmitTimeout.current) {
       socket.emit('typing')
       typingEmitTimeout.current = setTimeout(() => { typingEmitTimeout.current = null }, 800)
     }
   }
 
-  function sendMessage() {
-    const text = input.trim()
-    if (!text || !state.roundActive) return
+  function sendMessage(text) {
+    const t = (text ?? input).trim()
+    if (!t || !state.roundActive) return
     sfx.messageSent()
-    socket.emit('send_message', { text })
+    socket.emit('send_message', { text: t })
     setInput('')
     setOppTyping(false)
+    inputRef.current?.focus()
   }
 
   function handleRematch() {
@@ -123,14 +138,11 @@ export default function Battle() {
 
   const lastScore = state.lastHit ? { total: state.lastHit.total } : null
 
-  // Shake class/style
   const shakeStyle = shake ? {
-    animation: shake === 3
-      ? 'shakeWin 0.8s ease'
-      : shake === 2
-      ? 'shakeHeavy 0.4s ease'
-      : 'shakeLight 0.3s ease'
+    animation: shake === 3 ? 'shakeWin 0.8s ease' : shake === 2 ? 'shakeHeavy 0.4s ease' : 'shakeLight 0.3s ease'
   } : {}
+
+  const accentColor = state.myRole === 'p1' ? 'var(--neon-cyan)' : 'var(--neon-red)'
 
   return (
     <div className={styles.page} onClick={() => sfx.unlock()} style={shakeStyle}>
@@ -160,7 +172,24 @@ export default function Battle() {
 
         <ChatArea messages={state.messages} myRole={state.myRole} oppTyping={oppTyping} oppName={state.oppName} />
 
+        {/* Input zone */}
         <div className={styles.inputWrap}>
+
+          {/* Quick-fire burns — scrollable horizontal strip */}
+          {state.roundActive && (
+            <div className={styles.quickFire}>
+              {quickBurns.map((burn, i) => (
+                <button
+                  key={i}
+                  className={styles.quickBtn}
+                  onPointerDown={e => { e.preventDefault(); sendMessage(burn) }}
+                >
+                  {burn}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className={styles.inputRow}>
             <input
               ref={inputRef}
@@ -168,54 +197,45 @@ export default function Battle() {
               value={input}
               onChange={handleInputChange}
               onKeyDown={e => e.key === 'Enter' && sendMessage()}
-              placeholder={state.roundActive ? `Type your best shot...` : 'Waiting...'}
+              placeholder={state.roundActive ? 'Type your best shot...' : 'Waiting...'}
               maxLength={200}
               disabled={!state.roundActive}
+              autoComplete="off"
+              autoCorrect="on"
+              spellCheck={false}
+              inputMode="text"
+              enterKeyHint="send"
             />
             <button
               className={`${styles.sendBtn} ${styles[state.myRole]}`}
-              onClick={sendMessage}
+              onPointerDown={e => { e.preventDefault(); sendMessage() }}
               disabled={!state.roundActive || !input.trim()}
             >SEND</button>
           </div>
-          <div className={styles.charCount}>
-            <span style={{ color: input.length > 180 ? 'var(--neon-red)' : 'var(--dim)' }}>{input.length}</span>/200
 
-            {/* BG music toggle */}
+          <div className={styles.bottomBar}>
+            <span className={styles.charCount} style={{ color: input.length > 180 ? 'var(--neon-red)' : undefined }}>
+              {input.length}/200
+            </span>
+
             <button
-              onClick={toggleBg}
-              title={bgOn ? 'Mute music' : 'Unmute music'}
-              style={{
-                marginLeft: 8,
-                background: 'transparent',
-                border: `1px solid ${bgOn ? 'rgba(0,245,255,0.4)' : 'rgba(255,255,255,0.15)'}`,
-                color: bgOn ? 'var(--neon-cyan)' : 'var(--dim)',
-                fontFamily: "'Share Tech Mono',monospace",
-                fontSize: 9, letterSpacing: 1,
-                padding: '2px 8px', cursor: 'pointer',
-              }}
+              className={`${styles.iconBtn} ${styles.musicBtn} ${bgOn ? '' : styles.off}`}
+              onPointerDown={e => { e.preventDefault(); toggleBg() }}
+              aria-label={bgOn ? 'Mute music' : 'Unmute music'}
             >{bgOn ? '♪ ON' : '♪ OFF'}</button>
 
             <button
-              onClick={() => { if (window.confirm('Forfeit and leave? This counts as a loss.')) handleLeave() }}
-              style={{
-                marginLeft: 'auto',
-                background: 'transparent',
-                border: '1px solid rgba(255,0,60,0.3)',
-                color: 'rgba(255,0,60,0.5)',
-                fontFamily: "'Share Tech Mono',monospace",
-                fontSize: 9, letterSpacing: 1,
-                padding: '2px 8px', cursor: 'pointer',
-                transition: 'all 0.15s',
+              className={`${styles.iconBtn} ${styles.forfeitBtn}`}
+              onPointerDown={e => {
+                e.preventDefault()
+                if (window.confirm('Forfeit and leave? This counts as a loss.')) handleLeave()
               }}
-              onMouseEnter={e => { e.target.style.borderColor='var(--neon-red)'; e.target.style.color='var(--neon-red)' }}
-              onMouseLeave={e => { e.target.style.borderColor='rgba(255,0,60,0.3)'; e.target.style.color='rgba(255,0,60,0.5)' }}
             >✕ FORFEIT</button>
           </div>
         </div>
       </div>
 
-      {/* Opponent reconnecting */}
+      {/* Opponent reconnecting banner */}
       {state.oppReconnecting && (
         <div style={{
           position:'fixed',top:0,left:0,right:0,zIndex:140,
@@ -224,11 +244,11 @@ export default function Battle() {
           fontSize:12,color:'var(--neon-yellow)',textAlign:'center',letterSpacing:2,
           animation:'blink 1s ease infinite'
         }}>
-          📶 {state.oppName} LOST CONNECTION — WAITING 15s FOR RECONNECT...
+          📶 {state.oppName} LOST CONNECTION — WAITING 15s...
         </div>
       )}
 
-      {/* Opponent disconnected */}
+      {/* Opponent disconnected overlay */}
       {state.oppDisconnected && !state.matchOver && (
         <div style={{
           position:'fixed',inset:0,zIndex:150,background:'rgba(5,5,8,0.96)',
@@ -236,9 +256,9 @@ export default function Battle() {
           gap:16,textAlign:'center',padding:24,animation:'fadeIn 0.3s ease'
         }}>
           <div style={{fontSize:48}}>⚠️</div>
-          <div style={{fontFamily:"'Black Ops One',cursive",fontSize:'clamp(24px,6vw,48px)',color:'var(--neon-yellow)',textShadow:'0 0 20px var(--neon-yellow)',letterSpacing:3}}>OPPONENT LEFT</div>
+          <div style={{fontFamily:"'Black Ops One',cursive",fontSize:'clamp(22px,6vw,48px)',color:'var(--neon-yellow)',textShadow:'0 0 20px var(--neon-yellow)',letterSpacing:3}}>OPPONENT LEFT</div>
           <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:13,color:'var(--dim)',letterSpacing:1,maxWidth:280}}>{state.oppName} disconnected from the battle.</div>
-          <button onClick={handleLeave} style={{marginTop:8,padding:'13px 32px',background:'var(--neon-cyan)',color:'#000',border:'none',fontFamily:"'Black Ops One',cursive",fontSize:14,letterSpacing:2,cursor:'pointer',clipPath:'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))'}}>BACK TO LOBBY</button>
+          <button onPointerDown={handleLeave} style={{marginTop:8,padding:'14px 36px',background:'var(--neon-cyan)',color:'#000',border:'none',fontFamily:"'Black Ops One',cursive",fontSize:14,letterSpacing:2,cursor:'pointer',clipPath:'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))'}}>BACK TO LOBBY</button>
           <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
         </div>
       )}
@@ -274,30 +294,21 @@ export default function Battle() {
       <style>{`
         @keyframes shakeLight {
           0%,100%{transform:translateX(0)}
-          20%{transform:translateX(-4px)}
-          40%{transform:translateX(4px)}
-          60%{transform:translateX(-3px)}
-          80%{transform:translateX(3px)}
+          20%{transform:translateX(-4px)} 40%{transform:translateX(4px)}
+          60%{transform:translateX(-3px)} 80%{transform:translateX(3px)}
         }
         @keyframes shakeHeavy {
           0%,100%{transform:translate(0,0)}
-          15%{transform:translate(-8px,-4px)}
-          30%{transform:translate(8px,4px)}
-          45%{transform:translate(-6px,3px)}
-          60%{transform:translate(6px,-3px)}
-          75%{transform:translate(-4px,2px)}
-          90%{transform:translate(4px,-2px)}
+          15%{transform:translate(-8px,-4px)} 30%{transform:translate(8px,4px)}
+          45%{transform:translate(-6px,3px)}  60%{transform:translate(6px,-3px)}
+          75%{transform:translate(-4px,2px)}  90%{transform:translate(4px,-2px)}
         }
         @keyframes shakeWin {
           0%,100%{transform:translate(0,0) scale(1)}
-          10%{transform:translate(-10px,-5px) scale(1.02)}
-          20%{transform:translate(10px,5px) scale(0.98)}
-          30%{transform:translate(-8px,4px) scale(1.01)}
-          40%{transform:translate(8px,-4px) scale(1)}
-          50%{transform:translate(-5px,3px)}
-          60%{transform:translate(5px,-3px)}
-          70%{transform:translate(-3px,2px)}
-          80%{transform:translate(3px,-2px)}
+          10%{transform:translate(-10px,-5px) scale(1.02)} 20%{transform:translate(10px,5px) scale(0.98)}
+          30%{transform:translate(-8px,4px) scale(1.01)}  40%{transform:translate(8px,-4px) scale(1)}
+          50%{transform:translate(-5px,3px)} 60%{transform:translate(5px,-3px)}
+          70%{transform:translate(-3px,2px)} 80%{transform:translate(3px,-2px)}
           90%{transform:translate(-1px,1px)}
         }
       `}</style>
