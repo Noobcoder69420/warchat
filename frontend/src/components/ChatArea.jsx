@@ -159,12 +159,12 @@ function Message({ msg, myRole }) {
             }}>
               <span style={{
                 fontFamily: "'Share Tech Mono',monospace", fontSize: 9,
-                color: msg.scores.total <= 3 ? 'var(--dim)' : 'var(--neon-yellow)',
-                border: `1px solid ${msg.scores.total <= 3 ? 'var(--dim)' : 'var(--neon-yellow)'}`,
-                background: msg.scores.total <= 3 ? 'transparent' : 'rgba(255,230,0,0.1)',
+                color: msg.scores.total === 0 ? 'var(--neon-red)' : msg.scores.total <= 3 ? 'var(--dim)' : 'var(--neon-yellow)',
+                border: `1px solid ${msg.scores.total === 0 ? 'var(--neon-red)' : msg.scores.total <= 3 ? 'var(--dim)' : 'var(--neon-yellow)'}`,
+                background: msg.scores.total === 0 ? 'rgba(255,0,60,0.1)' : msg.scores.total <= 3 ? 'transparent' : 'rgba(255,230,0,0.1)',
                 padding: '1px 6px', letterSpacing: 1,
                 animation: msg.scores.total > 3 ? 'verdictSlam 0.3s cubic-bezier(0.36,0.07,0.19,0.97)' : 'none',
-              }}>+{msg.scores.total}pts</span>
+              }}>{msg.scores.total === 0 ? '✕ 0pts' : `+${msg.scores.total}pts`}</span>
               <span style={{
                 fontFamily: "'Share Tech Mono',monospace", fontSize: 8,
                 color: msg.scores.total <= 3 ? 'var(--dim)' : 'var(--neon-yellow)',
