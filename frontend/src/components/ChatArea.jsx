@@ -187,6 +187,7 @@ function Message({ msg, myRole }) {
 }
 
 export default function ChatArea({ messages, myRole, oppTyping, oppName }) {
+  const oppRole = myRole === 'p1' ? 'p2' : 'p1'
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -213,14 +214,22 @@ export default function ChatArea({ messages, myRole, oppTyping, oppName }) {
         </div>
       ))}
 
-      {/* Typing indicator — lives inside scroll container, below last message */}
+      {/* Typing indicator — mirrors to opponent's side */}
       {oppTyping && (
         <div style={{
-          display: 'flex', flexDirection: 'row', gap: 8,
-          alignItems: 'center', padding: '4px 0',
+          display: 'flex',
+          flexDirection: oppRole === 'p2' ? 'row-reverse' : 'row',
+          gap: 8,
+          alignItems: 'center',
+          padding: '4px 0',
           animation: 'msgIn 0.2s ease',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '6px 10px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 3,
+            padding: '6px 10px',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid var(--border)',
+          }}>
             {[0, 1, 2].map(i => (
               <div key={i} style={{
                 width: 5, height: 5, borderRadius: '50%',

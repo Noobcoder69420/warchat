@@ -110,11 +110,11 @@ export const sfx = {
 
   setBgMuted(muted) {
     bgMuted = muted
-    if (!bgAudio) return
     if (muted) {
-      bgAudio.pause()
-    } else if (bgStarted) {
-      bgAudio.play().catch(() => {})
+      if (bgAudio) bgAudio.pause()
+    } else {
+      // Always call startBgMusic when unmuting — handles all cases
+      startBgMusic()
     }
   },
 
