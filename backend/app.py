@@ -55,7 +55,9 @@ threading.Thread(target=keep_alive, daemon=True).start()
 
 # ─── TIMER ────────────────────────────────────────────────────────────────────
 
-def run_round_timer(room_id):
+def run_round_timer(room_id, countdown_delay=4):
+    """Wait for frontend countdown animation to finish before starting the round clock."""
+    time.sleep(countdown_delay)
     room = room_manager.get_room(room_id)
     if not room: return
     mode = get_mode(room)
@@ -148,7 +150,7 @@ def end_round(room_id):
                 'p2_round_wins': r['round_wins']['p2'],
                 'round_time': m['round_time'],
             }, room=room_id)
-            threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
+            threading.Thread(target=run_round_timer, args=(room_id, 4), daemon=True).start()
 
         threading.Thread(target=delayed_next_round, daemon=True).start()
 
