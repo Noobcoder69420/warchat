@@ -15,7 +15,7 @@ if _groq_key:
         groq_client = Groq(api_key=_groq_key)
         # Test the client with a minimal request to confirm it actually works
         _test = groq_client.chat.completions.create(
-            model='llama3-8b-8192',
+            model='llama-3.3-70b-versatile',
             messages=[{'role': 'user', 'content': 'say ok'}],
             max_tokens=5,
         )
@@ -274,7 +274,7 @@ def heuristic_judge(text):
 def judge_with_groq(text):
     try:
         resp = groq_client.chat.completions.create(
-            model='llama3-8b-8192',
+            model='llama-3.3-70b-versatile',
             messages=[
                 {'role':'system','content':SYSTEM_PROMPT},
                 {'role':'user','content':f'Rate this trash talk: "{text}"'}
