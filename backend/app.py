@@ -372,11 +372,20 @@ def health():
 
 @app.route('/debug/judge')
 def debug_judge():
-    from judge import GROQ_AVAILABLE, judge_message
+    from judge import GROQ_AVAILABLE, judge_message, groq_client
     key = os.environ.get('GROQ_API_KEY', '')
+    # Try a live groq call and capture any error
+    groq_error = None
+    if not GROQ_AVAILABLE and key:
+        try:
+            from groq import Groq
+            c = Groq(api_key=key.strip())
+            c.chat.completions.create(model='llama3-8b-8192', messages=[{'role':'user','content':'say ok'}], max_tokens=5)
+        except Exception as e:
+            groq_error = f'{type(e).__name__}: {e}'
     tests = ["I'm gay", "I give up", "you look like you eat cereal with water", "no wonder your dad left", "L", "ratio"]
     results = [{'msg': t, **judge_message(t)} for t in tests]
-    return {'groq_available': GROQ_AVAILABLE, 'key_present': bool(key), 'key_length': len(key), 'results': results}
+    return {'groq_available': GROQ_AVAILABLE, 'key_present': bool(key), 'key_length': len(key), 'groq_error': groq_error, 'results': results}
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

@@ -13,10 +13,16 @@ if _groq_key:
     try:
         from groq import Groq
         groq_client = Groq(api_key=_groq_key)
+        # Test the client with a minimal request to confirm it actually works
+        _test = groq_client.chat.completions.create(
+            model='llama3-8b-8192',
+            messages=[{'role': 'user', 'content': 'say ok'}],
+            max_tokens=5,
+        )
         GROQ_AVAILABLE = True
-        print(f'[JUDGE] Groq client initialized successfully')
+        print(f'[JUDGE] Groq client verified and working')
     except Exception as e:
-        print(f'[JUDGE] Groq init failed: {e}')
+        print(f'[JUDGE] Groq init/test failed: {type(e).__name__}: {e}')
         groq_client = None
         GROQ_AVAILABLE = False
 else:
