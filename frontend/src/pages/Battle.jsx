@@ -21,6 +21,9 @@ export default function Battle() {
   const [shake, setShake] = useState(false)
   const [bgOn, setBgOn] = useState(() => localStorage.getItem('kw_bg') !== 'off')
   const [oppTyping, setOppTyping] = useState(false)
+  const inputRef         = useRef(null)
+  const typingTimeout    = useRef(null)
+  const typingEmitTimeout = useRef(null)
 
   useEffect(() => {
     if (state.roundActive && inputRef.current) inputRef.current.focus()
