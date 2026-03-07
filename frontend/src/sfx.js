@@ -48,53 +48,82 @@ function playNoise({ duration = 0.1, gain = 0.2, filterFreq = 800 }) {
 }
 
 // ─── BACKGROUND MUSIC ─────────────────────────────────────────────────────────
-let bgAudio = null
-let bgMuted = false
-let bgStarted = false
+const BG_TRACKS = [
+  '/audio/bg.ogg',
+  '/audio/bg2.mp3', '/audio/bg3.mp3', '/audio/bg4.mp3', '/audio/bg5.mp3',
+  '/audio/bg6.mp3', '/audio/bg7.mp3', '/audio/bg8.mp3', '/audio/bg9.mp3',
+  '/audio/bg10.mp3',
+]
 
-function getBgAudio() {
-  if (!bgAudio) {
-    bgAudio = new Audio('/audio/bg.ogg')
-    bgAudio.loop = true
-    bgAudio.volume = bgMuted ? 0 : 0.25
+let bgAudio    = null
+let bgMuted    = false
+let bgStarted  = false
+let bgQueue    = []   // shuffled queue, refilled when empty
+let bgCurrent  = -1  // index of currently playing track
 
-    // Safari: pause when tab is hidden, resume when visible (if not muted)
-    document.addEventListener('visibilitychange', () => {
-      if (!bgAudio) return
-      if (document.hidden) {
-        bgAudio.pause()
-      } else if (!bgMuted && bgStarted) {
-        bgAudio.play().catch(() => {})
-      }
-    })
+function shuffledQueue(excludeIdx) {
+  // Fisher-Yates shuffle, exclude the track that just played so it doesn't repeat
+  const indices = BG_TRACKS.map((_, i) => i).filter(i => i !== excludeIdx)
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]]
   }
-  return bgAudio
+  return indices
 }
 
+function playNextTrack() {
+  if (!bgStarted || bgMuted) return
+  // Refill queue when empty
+  if (bgQueue.length === 0) bgQueue = shuffledQueue(bgCurrent)
+  bgCurrent = bgQueue.shift()
+
+  if (bgAudio) {
+    bgAudio.onended = null
+    bgAudio.pause()
+  }
+  bgAudio = new Audio(BG_TRACKS[bgCurrent])
+  bgAudio.volume = bgMuted ? 0 : 0.25
+  bgAudio.onended = () => playNextTrack()  // auto-advance on song end
+
+  bgAudio.play().catch(() => {
+    const retry = () => {
+      if (!bgMuted) bgAudio.play().catch(() => {})
+      document.removeEventListener('click',      retry)
+      document.removeEventListener('touchstart', retry)
+      document.removeEventListener('keydown',    retry)
+    }
+    document.addEventListener('click',      retry, { once: true })
+    document.addEventListener('touchstart', retry, { once: true })
+    document.addEventListener('keydown',    retry, { once: true })
+  })
+}
+
+// Safari: pause when tab hidden, resume when visible
+document.addEventListener('visibilitychange', () => {
+  if (!bgAudio) return
+  if (document.hidden) {
+    bgAudio.pause()
+  } else if (!bgMuted && bgStarted) {
+    bgAudio.play().catch(() => {})
+  }
+})
+
 function startBgMusic() {
+  if (bgStarted && bgAudio && !bgAudio.paused) return  // already playing
   bgStarted = true
-  try {
-    const a = getBgAudio()
-    a.volume = bgMuted ? 0 : 0.25
-    // Try playing immediately — works after any user gesture
-    a.play().catch(() => {
-      // If blocked, retry on next user interaction
-      const retry = () => {
-        if (!bgMuted) a.play().catch(() => {})
-        document.removeEventListener('click', retry)
-        document.removeEventListener('touchstart', retry)
-        document.removeEventListener('keydown', retry)
-      }
-      document.addEventListener('click', retry, { once: true })
-      document.addEventListener('touchstart', retry, { once: true })
-      document.addEventListener('keydown', retry, { once: true })
-    })
-  } catch (e) {}
+  if (bgAudio && bgAudio.paused && bgAudio.currentTime > 0) {
+    // Resume mid-track (e.g. toggled back on)
+    bgAudio.volume = bgMuted ? 0 : 0.25
+    bgAudio.play().catch(() => {})
+  } else {
+    playNextTrack()
+  }
 }
 
 function stopBgMusic() {
   bgStarted = false
   if (bgAudio) {
+    bgAudio.onended = null
     bgAudio.pause()
     bgAudio.currentTime = 0
   }
@@ -113,7 +142,6 @@ export const sfx = {
     if (muted) {
       if (bgAudio) bgAudio.pause()
     } else {
-      // Always call startBgMusic when unmuting — handles all cases
       startBgMusic()
     }
   },
