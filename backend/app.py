@@ -383,7 +383,15 @@ def debug_judge():
             c.chat.completions.create(model='llama3-8b-8192', messages=[{'role':'user','content':'say ok'}], max_tokens=5)
         except Exception as e:
             groq_error = f'{type(e).__name__}: {e}'
-    tests = ["I'm gay", "I give up", "you look like you eat cereal with water", "no wonder your dad left", "L", "ratio"]
+    tests = [
+        "I'm gay", "I give up", "you won bro",
+        "main haar gaya", "tu jeet gaya bhai", "bhai tu better hai",
+        "teri aukat nahi hai yahan aane ki",
+        "tere baap ne bhi chhod diya tha tujhe",
+        "you look like you eat cereal with water",
+        "no wonder your dad left",
+        "L", "ratio", "gg",
+    ]
     results = [{'msg': t, **judge_message(t)} for t in tests]
     return {'groq_available': GROQ_AVAILABLE, 'key_present': bool(key), 'key_length': len(key), 'groq_error': groq_error, 'results': results}
 

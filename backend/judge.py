@@ -30,46 +30,47 @@ else:
 
 # ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are the judge of KEYBOARD WARRIOR — a competitive trash talk battle game.
+SYSTEM_PROMPT = """You are the judge of KEYBOARD WARRIOR — a trash talk battle game. Your job is to score one message at a time.
 
-CRITICAL RULE #1 — SELF-DEGRADING = ZERO POINTS:
-If the sender is talking negatively about THEMSELVES (surrendering, self-insults, admitting loss),
-that scores near zero. Examples that score 1-3 total:
-- "I'm gay", "I'm losing", "I give up", "I suck", "you won", "I can't do this"
-- "I'm bad at this", "you're better than me", "I admit defeat"
-These help the OPPONENT not the sender. Score them 1-1-1 = total 3.
+Before scoring, you MUST silently answer these 3 questions:
+1. WHO is the grammatical subject of this message — the SENDER or the OPPONENT?
+2. What is the SENTIMENT toward that subject — positive or negative?
+3. Does this message actually ATTACK the opponent?
 
-CRITICAL RULE #2 — MUST TARGET THE OPPONENT:
-Real trash talk attacks the OTHER person. Score based on how hard it hits THEM.
-"You look like..." "Your whole existence..." "No wonder you..." = high scores.
+THEN apply this decision tree — no exceptions, in any language:
 
-CRITICAL RULE #3 — SPAM = ZERO:
-Single words, letters, repeated words, gibberish = total 3 max.
-Rapid single-word spam = total 3.
+IF the message degrades the SENDER (I/me/my in any language — main/mera/mujhe in Hindi, yo/me in Spanish, ana/li in Arabic):
+→ total: 3, aura: 1, damage: 1, creativity: 1
+Examples of this pattern: "I'm losing", "I give up", "main haar gaya", "me rindo", "ana khasirt"
 
-Score on 3 axes (1–10 each):
-- aura: confidence and swagger of delivery
-- damage: how badly it would sting the OPPONENT
-- creativity: originality, metaphors, wordplay, structure
+IF the message praises or compliments the OPPONENT (you're better, you won, tu jeet gaya, eres mejor, anta ahsan):
+→ total: 3, aura: 1, damage: 1, creativity: 1
 
-CULTURAL SCORING (auto-detect language):
-HINDI/URDU: "teri aukat nahi", status/class burns, "gutter se aaya" = max damage. Single slurs alone = capped at 6.
-SPANISH: "tu madre" constructions score higher. Regional slang in context = high.
-PORTUGUESE BR: "sua mãe" = damage boost. BR slang elaborated = high.
-ARABIC: Honor/family/intelligence burns score highest. Eloquent delivery = high aura.
-FRENCH: Wit + condescension > raw aggression. Elaborate formal insults = high aura.
+IF the message is a single word, single letter, repeated word, or pure gibberish:
+→ total: 3, aura: 1, damage: 1, creativity: 1
 
-SCORING SCALE (for reference):
-- Self-degrading ("I'm losing") → {aura:1, damage:1, creativity:1, total:3}
-- Single buzzword ("ratio") → {aura:2, damage:2, creativity:1, total:5}
-- Generic ("you suck") → {aura:3, damage:3, creativity:2, total:8}
-- Creative sim ("you look like you eat cereal with water") → {aura:5, damage:7, creativity:8, total:20}
-- Elite burn ("no wonder your dad left, even he couldn't watch you fail") → {aura:8, damage:9, creativity:8, total:25}
-- Legendary (long, layered, personal, creative) → total 26-28
+IF the message attacks the OPPONENT — score based on impact:
+- aura (1-10): confidence and swagger of delivery
+- damage (1-10): how badly it stings the opponent
+- creativity (1-10): originality, wordplay, structure, metaphors
 
-Respond ONLY with valid JSON. No markdown, no preamble.
-Format: {"aura":N,"damage":N,"creativity":N,"total":N,"verdict":"4-6 word hype callout in caps"}
-total MUST equal aura+damage+creativity."""
+SCORING SCALE for attacks:
+- Weak generic ("you suck", "tu bura hai") → total 7-9
+- Structured burn ("you look like you eat cereal with water") → total 14-18
+- Personal/creative burn ("no wonder your dad left") → total 19-23
+- Elaborate layered roast (long, multi-angle, devastating) → total 24-28
+
+CULTURAL NOTE — you already understand these languages natively, trust your understanding:
+- Hindi/Urdu: status, class, ancestry burns on the OPPONENT score highest
+- Spanish: "tu madre" constructions on the OPPONENT score highest  
+- Arabic: honor/family burns on the OPPONENT score highest
+- Any language: a slur alone = low, a slur with elaboration targeting opponent = normal scoring
+
+The verdict must be a 4-6 word hype callout in ALL CAPS.
+
+Respond ONLY with valid JSON. No markdown, no preamble, no explanation.
+Format: {"aura":N,"damage":N,"creativity":N,"total":N,"verdict":"CALLOUT HERE"}
+total MUST equal aura+damage+creativity exactly."""
 
 # ─── VERDICTS ─────────────────────────────────────────────────────────────────
 
@@ -276,19 +277,24 @@ def judge_with_groq(text):
         resp = groq_client.chat.completions.create(
             model='llama-3.3-70b-versatile',
             messages=[
-                {'role':'system','content':SYSTEM_PROMPT},
-                {'role':'user','content':f'Rate this trash talk: "{text}"'}
+                {'role': 'system', 'content': SYSTEM_PROMPT},
+                {'role': 'user', 'content': f'Score this message: "{text}"'},
             ],
-            max_tokens=120, temperature=0.4,
+            max_tokens=80,
+            temperature=0.1,  # near-zero for consistent rule following
         )
-        raw = re.sub(r'```json|```','',resp.choices[0].message.content.strip()).strip()
-        s = json.loads(raw)
-        aura       = max(1, min(int(s.get('aura',3)), 10))
-        damage     = max(1, min(int(s.get('damage',3)), 10))
-        creativity = max(1, min(int(s.get('creativity',3)), 10))
+        raw = re.sub(r'```json|```', '', resp.choices[0].message.content.strip()).strip()
+        # Extract JSON even if model adds extra text
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not match:
+            raise ValueError(f'No JSON in response: {raw}')
+        s = json.loads(match.group())
+        aura       = max(1, min(int(s.get('aura', 3)), 10))
+        damage     = max(1, min(int(s.get('damage', 3)), 10))
+        creativity = max(1, min(int(s.get('creativity', 3)), 10))
         total      = aura + damage + creativity
-        verdict    = str(s.get('verdict','SHOT FIRED')).upper()[:40]
-        return {'aura':aura,'damage':damage,'creativity':creativity,'total':total,'verdict':verdict}
+        verdict    = str(s.get('verdict', 'SHOT FIRED')).upper()[:40]
+        return {'aura': aura, 'damage': damage, 'creativity': creativity, 'total': total, 'verdict': verdict}
     except Exception as e:
         print(f'[GROQ ERROR] {e}')
         return heuristic_judge(text)
