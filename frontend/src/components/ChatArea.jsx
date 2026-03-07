@@ -152,22 +152,33 @@ function Message({ msg, myRole }) {
               ))}
             </div>
 
-            {/* Total + verdict */}
+            {/* Total + verdict — slams in */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6, marginTop: 5,
               justifyContent: isP1 ? 'flex-start' : 'flex-end'
             }}>
               <span style={{
                 fontFamily: "'Share Tech Mono',monospace", fontSize: 9,
-                color: 'var(--neon-yellow)', border: '1px solid var(--neon-yellow)',
-                background: 'rgba(255,230,0,0.1)', padding: '1px 6px',
-                letterSpacing: 1
+                color: msg.scores.total <= 3 ? 'var(--dim)' : 'var(--neon-yellow)',
+                border: `1px solid ${msg.scores.total <= 3 ? 'var(--dim)' : 'var(--neon-yellow)'}`,
+                background: msg.scores.total <= 3 ? 'transparent' : 'rgba(255,230,0,0.1)',
+                padding: '1px 6px', letterSpacing: 1,
+                animation: msg.scores.total > 3 ? 'verdictSlam 0.3s cubic-bezier(0.36,0.07,0.19,0.97)' : 'none',
               }}>+{msg.scores.total}pts</span>
               <span style={{
                 fontFamily: "'Share Tech Mono',monospace", fontSize: 8,
-                color: 'var(--neon-yellow)', letterSpacing: 1
+                color: msg.scores.total <= 3 ? 'var(--dim)' : 'var(--neon-yellow)',
+                letterSpacing: 1,
+                animation: msg.scores.total > 10 ? 'verdictSlam 0.3s cubic-bezier(0.36,0.07,0.19,0.97)' : 'none',
               }}>» {msg.scores.verdict}</span>
             </div>
+            <style>{`
+              @keyframes verdictSlam {
+                0%   { transform: scale(1.6); opacity: 0; }
+                60%  { transform: scale(0.95); opacity: 1; }
+                100% { transform: scale(1); }
+              }
+            `}</style>
           </>
         )}
       </div>

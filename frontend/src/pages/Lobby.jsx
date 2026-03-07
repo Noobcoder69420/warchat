@@ -16,6 +16,22 @@ export default function Lobby() {
   const [tab, setTab] = useState('create')
   const [copied, setCopied] = useState(false)
   const [selectedMode, setSelectedMode] = useState('standard')
+  const [bgOn, setBgOn] = useState(() => localStorage.getItem('kw_bg') !== 'off')
+
+  useEffect(() => {
+    sfx.unlock()
+    if (bgOn) sfx.startBg()
+    sfx.setBgMuted(!bgOn)
+    return () => sfx.stopBg()
+  }, [])
+
+  function toggleBg() {
+    const next = !bgOn
+    setBgOn(next)
+    localStorage.setItem('kw_bg', next ? 'on' : 'off')
+    if (next) { sfx.startBg(); sfx.setBgMuted(false) }
+    else sfx.setBgMuted(true)
+  }
 
   const MODES = [
     { key: 'blitz',     label: '⚡ BLITZ',     desc: '20s · First to 2 rounds', color: '#f0c040' },
@@ -70,6 +86,15 @@ export default function Lobby() {
             <span className={styles.onlineCount}>
               {state.onlineCount} {state.onlineCount === 1 ? 'WARRIOR' : 'WARRIORS'} ONLINE
             </span>
+            <button onClick={toggleBg} style={{
+              marginLeft: 'auto',
+              background: 'transparent',
+              border: `1px solid ${bgOn ? 'rgba(0,245,255,0.4)' : 'rgba(255,255,255,0.15)'}`,
+              color: bgOn ? 'var(--neon-cyan)' : 'var(--dim)',
+              fontFamily: "'Share Tech Mono',monospace",
+              fontSize: 9, letterSpacing: 1,
+              padding: '3px 10px', cursor: 'pointer',
+            }}>♪ {bgOn ? 'MUSIC ON' : 'MUSIC OFF'}</button>
           </div>
           {!state.connected && <p className={styles.connecting}>⚡ CONNECTING TO SERVER...</p>}
         </header>
