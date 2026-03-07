@@ -346,6 +346,15 @@ def on_send_message(data):
         socketio.emit('score_result', {'msg_id': msg_id, 'role': role, 'scores': scores}, room=room_id)
     threading.Thread(target=judge_async, daemon=True).start()
 
+@socketio.on('typing')
+def on_typing():
+    room_id = room_manager.find_room_by_sid(request.sid)
+    if not room_id: return
+    role = room_manager.get_role_by_sid(room_id, request.sid)
+    if not role: return
+    # include_self=False means only the OTHER player gets this
+    emit('opponent_typing', {'role': role}, room=room_id, include_self=False)
+
 @socketio.on('rematch_request')
 def on_rematch_request():
     room_id = room_manager.find_room_by_sid(request.sid)

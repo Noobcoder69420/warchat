@@ -1,10 +1,6 @@
 // sfx.js — Web Audio API sound engine + background music
 
 let ctx = null
-let bgGain = null
-let bgNodes = []
-let bgMuted = false
-let bgStarted = false
 
 function getCtx() {
   if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)()
@@ -52,99 +48,30 @@ function playNoise({ duration = 0.1, gain = 0.2, filterFreq = 800 }) {
 }
 
 // ─── BACKGROUND MUSIC ─────────────────────────────────────────────────────────
-// Procedural dark cyberpunk loop — bass pulse + hi-hat + pad
+let bgAudio = null
+let bgMuted = false
+
+function getBgAudio() {
+  if (!bgAudio) {
+    bgAudio = new Audio('/audio/bg.ogg')
+    bgAudio.loop = true
+    bgAudio.volume = bgMuted ? 0 : 0.25
+  }
+  return bgAudio
+}
 
 function startBgMusic() {
-  if (bgStarted) return
-  bgStarted = true
   try {
-    const c = getCtx()
-    bgGain = c.createGain()
-    bgGain.gain.setValueAtTime(bgMuted ? 0 : 0.12, c.currentTime)
-    bgGain.connect(c.destination)
-
-    const BPM = 120
-    const beat = 60 / BPM
-    const bar = beat * 4
-
-    function scheduleBass(startTime) {
-      // Four-on-the-floor kick pattern
-      const kicks = [0, beat, beat * 2, beat * 3]
-      kicks.forEach(offset => {
-        const osc = c.createOscillator()
-        const g = c.createGain()
-        osc.connect(g); g.connect(bgGain)
-        osc.type = 'sine'
-        osc.frequency.setValueAtTime(80, startTime + offset)
-        osc.frequency.exponentialRampToValueAtTime(30, startTime + offset + 0.15)
-        g.gain.setValueAtTime(0.6, startTime + offset)
-        g.gain.exponentialRampToValueAtTime(0.001, startTime + offset + 0.25)
-        osc.start(startTime + offset)
-        osc.stop(startTime + offset + 0.3)
-        bgNodes.push(osc)
-      })
-    }
-
-    function scheduleHihat(startTime) {
-      // Offbeat hi-hats
-      for (let i = 0; i < 8; i++) {
-        const bufSize = c.sampleRate * 0.04
-        const buf = c.createBuffer(1, bufSize, c.sampleRate)
-        const d = buf.getChannelData(0)
-        for (let j = 0; j < bufSize; j++) d[j] = Math.random() * 2 - 1
-        const src = c.createBufferSource()
-        src.buffer = buf
-        const filt = c.createBiquadFilter()
-        filt.type = 'highpass'
-        filt.frequency.value = 8000
-        const g = c.createGain()
-        const t = startTime + i * (beat / 2) + beat * 0.25
-        g.gain.setValueAtTime(i % 2 === 0 ? 0.08 : 0.04, t)
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.04)
-        src.connect(filt); filt.connect(g); g.connect(bgGain)
-        src.start(t); src.stop(t + 0.05)
-        bgNodes.push(src)
-      }
-    }
-
-    function schedulePad(startTime) {
-      // Dark minor chord pad
-      const chords = [[110, 130.8, 164.8], [98, 123.5, 155.6]]
-      chords.forEach((chord, ci) => {
-        chord.forEach(freq => {
-          const osc = c.createOscillator()
-          const g = c.createGain()
-          osc.connect(g); g.connect(bgGain)
-          osc.type = 'triangle'
-          osc.frequency.value = freq
-          const t = startTime + ci * bar * 2
-          g.gain.setValueAtTime(0, t)
-          g.gain.linearRampToValueAtTime(0.04, t + 0.5)
-          g.gain.linearRampToValueAtTime(0.04, t + bar * 2 - 0.3)
-          g.gain.linearRampToValueAtTime(0, t + bar * 2)
-          osc.start(t); osc.stop(t + bar * 2)
-          bgNodes.push(osc)
-        })
-      })
-    }
-
-    // Schedule looping every 4 bars
-    let loopStart = c.currentTime + 0.1
-    function scheduleLoop() {
-      scheduleBass(loopStart)
-      scheduleHihat(loopStart)
-      schedulePad(loopStart)
-      loopStart += bar * 4
-      setTimeout(scheduleLoop, bar * 4 * 1000 - 200)
-    }
-    scheduleLoop()
+    const a = getBgAudio()
+    a.play().catch(() => {})
   } catch (e) {}
 }
 
 function stopBgMusic() {
-  bgNodes.forEach(n => { try { n.stop() } catch (e) {} })
-  bgNodes = []
-  bgStarted = false
+  if (bgAudio) {
+    bgAudio.pause()
+    bgAudio.currentTime = 0
+  }
 }
 
 export const sfx = {
@@ -157,10 +84,7 @@ export const sfx = {
 
   setBgMuted(muted) {
     bgMuted = muted
-    if (bgGain) {
-      const c = getCtx()
-      bgGain.gain.linearRampToValueAtTime(muted ? 0 : 0.12, c.currentTime + 0.3)
-    }
+    if (bgAudio) bgAudio.volume = muted ? 0 : 0.25
   },
 
   isBgMuted() { return bgMuted },
