@@ -2,6 +2,8 @@ import threading
 import random
 from datetime import datetime, timedelta
 
+AGENT_NAMES = {'kairos': 'KAIROS', 'kira': 'KIRA', 'jinx': 'JINX'}
+
 
 class RoomManager:
     def __init__(self):
@@ -33,7 +35,29 @@ class RoomManager:
                 self._rooms[room_id]['players'][role] = {'sid': sid, 'name': name, 'avatar': avatar}
                 self._sid_to_room[sid] = room_id
 
-    def matchmake(self, sid, name, avatar='rage', mode='standard'):
+    def create_ai_room(self, sid, name, avatar='rage', agent_id='kairos', mode='standard'):
+        """Create a room where p2 is an AI agent, not a real player."""
+        room_id = self._generate_room_id()
+        with self._lock:
+            self._rooms[room_id] = {
+                'id': room_id, 'status': 'battle', 'mode': mode,
+                'created_at': datetime.utcnow(),
+                'players': {
+                    'p1': {'sid': sid,     'name': name,       'avatar': avatar},
+                    'p2': {'sid': 'AI',    'name': AGENT_NAMES.get(agent_id, 'AI'), 'avatar': agent_id, 'is_ai': True},
+                },
+                'scores': {'p1': 0, 'p2': 0},
+                'round_wins': {'p1': 0, 'p2': 0},
+                'current_round': 1, 'round_active': False,
+                'rematch_requests': set(),
+                'round_history': [],
+                'full_round_history': [],
+                'is_ai_room': True,
+                'ai_role': 'p2',
+                'ai_agent_id': agent_id,
+            }
+            self._sid_to_room[sid] = room_id
+        return room_id
         with self._lock:
             cutoff = datetime.utcnow() - timedelta(seconds=60)
             self._matchmaking_queue = [

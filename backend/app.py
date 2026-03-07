@@ -8,6 +8,7 @@ from flask_socketio import SocketIO, emit, join_room
 from flask_cors import CORS
 from rooms import RoomManager
 from judge import judge_message, get_best_burn
+from ai_agents import AGENT_LIST, generate_ai_response
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'kw-dev-secret')
@@ -186,6 +187,12 @@ def on_disconnect():
     result = room_manager.mark_disconnected(sid)
     if result:
         room_id, role, name = result
+        # AI rooms: no reconnect flow — just clean up quietly
+        room = room_manager.get_room(room_id)
+        if room and room.get('is_ai_room'):
+            room_manager.finalize_disconnect(room_id, role)
+            return
+
         socketio.emit('opp_reconnecting', {
             'player': name,
             'message': f'{name} lost connection — waiting for reconnect...',
@@ -332,6 +339,101 @@ def on_leave_matchmaking():
     room_manager.remove_from_queue(request.sid)
     emit('matchmaking_cancelled')
 
+# ─── AI BATTLE ────────────────────────────────────────────────────────────────
+
+def _fire_ai_response(room_id, player_text):
+    """Generate and emit an AI agent response. Called in a background thread."""
+    import time as _time
+    room = room_manager.get_room(room_id)
+    if not room or not room.get('round_active'): return
+
+    agent_id  = room.get('ai_agent_id', 'kairos')
+    ai_role   = room.get('ai_role', 'p2')
+    ai_player = room['players'].get(ai_role, {})
+    ai_name   = ai_player.get('name', 'AI')
+    ai_avatar = ai_player.get('avatar', agent_id)
+
+    # Realistic typing delay: 1.2–2.8s
+    _time.sleep(1.2 + (hash(player_text) % 1000) / 600)
+
+    # Re-check round is still active after delay
+    room = room_manager.get_room(room_id)
+    if not room or not room.get('round_active'): return
+
+    # Get history for context
+    history = room_manager.get_history(room_id)
+
+    # Generate response via Groq
+    from judge import groq_client
+    ai_text = generate_ai_response(agent_id, player_text, history=history, groq_client=groq_client)
+    if not ai_text: return
+
+    import uuid as _uuid
+    msg_id = 'ai-' + str(_uuid.uuid4())[:8]
+
+    # Emit typing indicator first
+    socketio.emit('opponent_typing', {'role': ai_role}, room=room_id)
+    _time.sleep(0.7)
+
+    # Re-check once more before emitting message
+    room = room_manager.get_room(room_id)
+    if not room or not room.get('round_active'): return
+
+    # Emit the AI message
+    socketio.emit('new_message', {
+        'msg_id': msg_id, 'role': ai_role,
+        'name': ai_name, 'avatar': ai_avatar, 'text': ai_text
+    }, room=room_id)
+
+    # Add to history
+    room_manager.add_to_history(room_id, ai_role, ai_name, ai_text)
+
+    # Judge the AI message
+    ai_scores = judge_message(ai_text, history=history, role=ai_role)
+    room_manager.add_score(room_id, ai_role, ai_scores['total'])
+    socketio.emit('score_result', {
+        'msg_id': msg_id, 'role': ai_role, 'scores': ai_scores
+    }, room=room_id)
+
+
+@socketio.on('join_ai_battle')
+def on_join_ai_battle(data):
+    name     = data.get('name', 'Fighter').strip()[:20]
+    avatar   = data.get('avatar', 'rage')
+    agent_id = data.get('agent_id', 'kairos')
+    mode     = data.get('mode', DEFAULT_MODE)
+    if mode not in MATCH_MODES: mode = DEFAULT_MODE
+
+    room_id = room_manager.create_ai_room(request.sid, name, avatar, agent_id, mode)
+    join_room(room_id)
+
+    m         = MATCH_MODES[mode]
+    room      = room_manager.get_room(room_id)
+    ai_name   = room['players']['p2']['name']
+    ai_avatar = room['players']['p2']['avatar']
+
+    # Tell the client they joined — reuse existing room_joined event shape
+    emit('room_joined', {
+        'room_id': room_id, 'role': 'p1', 'name': name,
+        'opponent_name': ai_name, 'opponent_avatar': ai_avatar,
+        'mode': mode, 'mode_label': m['label'],
+        'round_time': m['round_time'],
+        'rounds_to_win': m['rounds_to_win'],
+        'max_rounds': m['max_rounds'],
+    })
+
+    # Start the battle immediately (no second player to wait for)
+    room_manager.set_round_active(room_id, True)
+    socketio.emit('battle_start', {
+        'p1_name': name, 'p2_name': ai_name, 'round': 1,
+        'mode': mode, 'mode_label': m['label'],
+        'round_time': m['round_time'],
+        'rounds_to_win': m['rounds_to_win'],
+        'max_rounds': m['max_rounds'],
+    }, room=room_id)
+    threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
+
+
 @socketio.on('send_message')
 def on_send_message(data):
     text = data.get('text', '').strip()[:200]
@@ -352,11 +454,18 @@ def on_send_message(data):
     history = room_manager.get_history(room_id)
     # Now add this message to history for future messages
     room_manager.add_to_history(room_id, role, player['name'], text)
+
     def judge_async():
         scores = judge_message(text, history=history, role=role)
         room_manager.add_score(room_id, role, scores['total'])
         socketio.emit('score_result', {'msg_id': msg_id, 'role': role, 'scores': scores}, room=room_id)
     threading.Thread(target=judge_async, daemon=True).start()
+
+    # If AI room and the human just sent — trigger AI response
+    if room.get('is_ai_room') and room.get('ai_role') != role:
+        def ai_respond():
+            _fire_ai_response(room_id, text)
+        threading.Thread(target=ai_respond, daemon=True).start()
 
 @socketio.on('typing')
 def on_typing():
@@ -371,6 +480,23 @@ def on_typing():
 def on_rematch_request():
     room_id = room_manager.find_room_by_sid(request.sid)
     if not room_id: return
+    room = room_manager.get_room(room_id)
+    if not room: return
+
+    # AI rooms: instant rematch, no need for both players to agree
+    if room.get('is_ai_room'):
+        room_manager.reset_room(room_id)
+        r = room_manager.get_room(room_id)
+        m = get_mode(r)
+        socketio.emit('battle_start', {
+            'p1_name': r['players']['p1']['name'],
+            'p2_name': r['players']['p2']['name'], 'round': 1,
+            'mode': r.get('mode', DEFAULT_MODE), 'mode_label': m['label'],
+            'round_time': m['round_time'], 'rounds_to_win': m['rounds_to_win'], 'max_rounds': m['max_rounds'],
+        }, room=room_id)
+        threading.Thread(target=run_round_timer, args=(room_id,), daemon=True).start()
+        return
+
     ready = room_manager.request_rematch(room_id, request.sid)
     emit('rematch_requested', {}, room=room_id)
     if ready:
