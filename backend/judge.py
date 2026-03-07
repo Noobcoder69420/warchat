@@ -3,13 +3,24 @@ import json
 import random
 import re
 
-try:
-    from groq import Groq
-    groq_client = Groq(api_key=os.environ.get('GROQ_API_KEY', ''))
-    GROQ_AVAILABLE = bool(os.environ.get('GROQ_API_KEY'))
-except Exception:
-    groq_client = None
-    GROQ_AVAILABLE = False
+groq_client = None
+GROQ_AVAILABLE = False
+
+_groq_key = os.environ.get('GROQ_API_KEY', '').strip()
+print(f'[JUDGE] GROQ_API_KEY present: {bool(_groq_key)}, length: {len(_groq_key)}')
+
+if _groq_key:
+    try:
+        from groq import Groq
+        groq_client = Groq(api_key=_groq_key)
+        GROQ_AVAILABLE = True
+        print(f'[JUDGE] Groq client initialized successfully')
+    except Exception as e:
+        print(f'[JUDGE] Groq init failed: {e}')
+        groq_client = None
+        GROQ_AVAILABLE = False
+else:
+    print('[JUDGE] No GROQ_API_KEY — falling back to heuristic')
 
 # ─── SYSTEM PROMPT ────────────────────────────────────────────────────────────
 
