@@ -370,15 +370,14 @@ def health():
         count = len(online_sids)
     return {'status': 'ok', 'rooms': room_manager.room_count(), 'online': count}
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
-
 @app.route('/debug/judge')
 def debug_judge():
-    import os
     from judge import GROQ_AVAILABLE, judge_message
     key = os.environ.get('GROQ_API_KEY', '')
     tests = ["I'm gay", "I give up", "you look like you eat cereal with water", "no wonder your dad left", "L", "ratio"]
     results = [{'msg': t, **judge_message(t)} for t in tests]
     return {'groq_available': GROQ_AVAILABLE, 'key_present': bool(key), 'key_length': len(key), 'results': results}
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
