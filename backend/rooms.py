@@ -43,8 +43,8 @@ class RoomManager:
                 'id': room_id, 'status': 'battle', 'mode': mode,
                 'created_at': datetime.utcnow(),
                 'players': {
-                    'p1': {'sid': sid,     'name': name,       'avatar': avatar},
-                    'p2': {'sid': 'AI',    'name': AGENT_NAMES.get(agent_id, 'AI'), 'avatar': agent_id, 'is_ai': True},
+                    'p1': {'sid': sid,  'name': name,                          'avatar': avatar},
+                    'p2': {'sid': 'AI', 'name': AGENT_NAMES.get(agent_id, 'AI'), 'avatar': agent_id, 'is_ai': True},
                 },
                 'scores': {'p1': 0, 'p2': 0},
                 'round_wins': {'p1': 0, 'p2': 0},
@@ -58,6 +58,8 @@ class RoomManager:
             }
             self._sid_to_room[sid] = room_id
         return room_id
+
+    def matchmake(self, sid, name, avatar='rage', mode='standard'):
         with self._lock:
             cutoff = datetime.utcnow() - timedelta(seconds=60)
             self._matchmaking_queue = [

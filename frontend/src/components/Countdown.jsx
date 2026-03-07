@@ -5,10 +5,12 @@ export default function Countdown({ onDone, round }) {
   const [count, setCount] = useState(3)
   const [phase, setPhase] = useState('number')
   const doneRef = useRef(false)
+  const cancelledRef = useRef(false)
   const timersRef = useRef([])
 
   useEffect(() => {
     doneRef.current = false
+    cancelledRef.current = false
     setCount(3)
     setPhase('number')
 
@@ -16,7 +18,10 @@ export default function Countdown({ onDone, round }) {
     sfx.countdownBeep(3)
 
     function addTimer(fn, ms) {
-      const t = setTimeout(fn, ms)
+      const t = setTimeout(() => {
+        if (cancelledRef.current) return  // don't fire if unmounted
+        fn()
+      }, ms)
       timersRef.current.push(t)
       return t
     }
@@ -32,6 +37,7 @@ export default function Countdown({ onDone, round }) {
     }, 3800)
 
     return () => {
+      cancelledRef.current = true  // mark cancelled before clearing timers
       timersRef.current.forEach(clearTimeout)
       timersRef.current = []
     }
