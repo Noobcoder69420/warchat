@@ -340,8 +340,12 @@ def on_send_message(data):
         'msg_id': msg_id, 'role': role,
         'name': player['name'], 'avatar': player.get('avatar', 'rage'), 'text': text
     }, room=room_id)
+    # Grab history BEFORE adding current message (so context = what came before)
+    history = room_manager.get_history(room_id)
+    # Now add this message to history for future messages
+    room_manager.add_to_history(room_id, role, player['name'], text)
     def judge_async():
-        scores = judge_message(text)
+        scores = judge_message(text, history=history)
         room_manager.add_score(room_id, role, scores['total'])
         socketio.emit('score_result', {'msg_id': msg_id, 'role': role, 'scores': scores}, room=room_id)
     threading.Thread(target=judge_async, daemon=True).start()

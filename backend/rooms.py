@@ -21,7 +21,8 @@ class RoomManager:
                 'scores': {'p1': 0, 'p2': 0},
                 'round_wins': {'p1': 0, 'p2': 0},
                 'current_round': 1, 'round_active': False,
-                'rematch_requests': set()
+                'rematch_requests': set(),
+                'round_history': [],  # stores last N messages for context
             }
             self._sid_to_room[sid] = room_id
         return room_id
@@ -52,7 +53,8 @@ class RoomManager:
                         'p2': {'sid': p2_sid, 'name': p2_name, 'avatar': p2_av}
                     },
                     'scores': {'p1': 0, 'p2': 0}, 'round_wins': {'p1': 0, 'p2': 0},
-                    'current_round': 1, 'round_active': False, 'rematch_requests': set()
+                    'current_round': 1, 'round_active': False, 'rematch_requests': set(),
+                    'round_history': [],
                 }
                 self._sid_to_room[p1_sid] = room_id
                 self._sid_to_room[p2_sid] = room_id
@@ -146,6 +148,20 @@ class RoomManager:
         with self._lock:
             if room_id in self._rooms: self._rooms[room_id]['status'] = status
 
+    def add_to_history(self, room_id, role, name, text):
+        with self._lock:
+            if room_id in self._rooms:
+                h = self._rooms[room_id].setdefault('round_history', [])
+                h.append({'role': role, 'name': name, 'text': text})
+                # Keep only last 6 messages for context window efficiency
+                if len(h) > 6:
+                    self._rooms[room_id]['round_history'] = h[-6:]
+
+    def get_history(self, room_id):
+        room = self._rooms.get(room_id)
+        if not room: return []
+        return list(room.get('round_history', []))
+
     def set_round_active(self, room_id, active):
         with self._lock:
             if room_id in self._rooms: self._rooms[room_id]['round_active'] = active
@@ -164,6 +180,7 @@ class RoomManager:
                 self._rooms[room_id]['current_round'] = round_num
                 self._rooms[room_id]['scores'] = {'p1': 0, 'p2': 0}
                 self._rooms[room_id]['round_active'] = True
+                self._rooms[room_id]['round_history'] = []  # fresh context each round
 
     def request_rematch(self, room_id, sid):
         with self._lock:
@@ -183,6 +200,7 @@ class RoomManager:
                 r['round_active'] = True
                 r['status'] = 'battle'
                 r['rematch_requests'] = set()
+                r['round_history'] = []
                 # mode intentionally preserved across rematch
 
     def get_room(self, room_id): return self._rooms.get(room_id)
